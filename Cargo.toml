@@ -18,15 +18,21 @@ ring = "0.16"
 structopt = "0.3"
 rpassword = "4.0"
 rprompt = "1.0"
-
-gpgme = { version = "0.9", optional = true}
-otpauth = { version = "0.4", optional = true}
 lazy_static = "1.4"
+failure = "0.1"
+walkdir = "2.2"
+regex = { version = "1.3", default-features = false, features = ["std"] }
+
+tui = { version = "0.8", optional = true }
+termion = { version = "1.5", optional = true }
+gpgme = { version = "0.9", optional = true }
+otpauth = { version = "0.4", optional = true }
 
 [build-dependencies]
 rustc_tools_util = "0.2"
 
 [features]
-default = ["gpg", "otp"]
+default = ["gpg", "otp", "ui"]
 gpg = ["gpgme"]
 otp = ["otpauth"]
+ui = ["tui", "termion"]

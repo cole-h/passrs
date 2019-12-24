@@ -1,13 +1,29 @@
-use std::error::Error;
+// FIXME: replace all print* calls with actual logging
 
 mod cli;
-pub(crate) mod consts;
-pub(crate) mod error;
-pub(crate) mod subcmds;
-pub(crate) mod utils;
+mod consts;
+mod error;
+#[cfg(feature = "tui")]
+mod event;
+mod subcmds;
+#[cfg(feature = "tui")]
+mod ui;
+mod utils;
 
-pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
+// use std::error::Error;
+// pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
+// pub type Result<T> = ::std::result::Result<T, failure::Error>;
 
-fn main() {
-    cli::opt();
+fn main() -> Result<(), failure::Error> {
+    // match cli::opt() {
+    //     Ok(_) => Ok(()),
+    //     Err(e) => {
+    //         println!("{}", e);
+    //         std::process::exit(1);
+    //     }
+    // }
+    // let _ = utils::search_entries("sep")?;
+    ui::display_matches("sep")?;
+    // ui::select().unwrap();
+    Ok(())
 }

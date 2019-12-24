@@ -6,7 +6,7 @@ use gpgme::{Context, Protocol};
 
 use crate::error::PassrsError;
 use crate::subcmds::run_command;
-use crate::Result;
+use failure::Fallible;
 
 // 1. verify provided path
 // 2. verify provided key
@@ -30,10 +30,10 @@ pub fn init(path: String, key: String) {
 }
 
 /// Returns `()` if path is valid, or an error if path is invalid.
-fn verify_path(path: &String) -> Result<()> {
+fn verify_path(path: &String) -> Fallible<()> {
     let meta = fs::metadata(path);
     if meta.is_ok() {
-        return Err(Box::new(PassrsError::PathExists));
+        return Err(PassrsError::PathExists.into());
     }
     //   check_sneaky_paths(&path)
     //   check if path already exists
@@ -41,7 +41,7 @@ fn verify_path(path: &String) -> Result<()> {
 }
 
 // TODO: like gopass, iterate over keys that match
-pub fn verify_key<S>(gpg_id: S) -> Result<String>
+pub fn verify_key<S>(gpg_id: S) -> Fallible<String>
 where
     S: Into<String>,
 {
@@ -57,7 +57,7 @@ where
 
         return Ok(email);
     } else {
-        return Err(Box::new(PassrsError::NoPrivateKeyFound));
+        return Err(PassrsError::NoPrivateKeyFound.into());
     }
 }
 
@@ -66,11 +66,11 @@ fn git_init(path: &String) {
 }
 
 // TODO: error handling
-fn setup_repo(path: &String, gpg_id: &String) -> Result<()> {
+fn setup_repo(path: &String, gpg_id: &String) -> Fallible<()> {
     // FIXME: only used to prevent littering my FS when testing
     match fs::create_dir_all(&path) {
         Ok(_) => {}
-        Err(_) => return Err(Box::new(PassrsError::FailedToCreateDirectories)),
+        Err(_) => return Err(PassrsError::FailedToCreateDirectories.into()),
     }
 
     git_init(&path);

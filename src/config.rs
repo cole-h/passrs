@@ -1,4 +1,4 @@
-// pass config -- for use with git commits + signing
+// TODO: pass config -- for use with git commits + signing
 struct Config {
     name: String,
     email: String,

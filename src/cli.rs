@@ -6,7 +6,7 @@ use structopt::StructOpt;
 
 // TODO: flesh out error enum and handling
 // use crate::error::PassrsError;
-use crate::consts::*;
+use crate::consts::VERSION;
 use crate::subcmds::*;
 
 #[derive(Debug, StructOpt)]
@@ -15,8 +15,7 @@ use crate::subcmds::*;
     settings = &[AppSettings::ArgsNegateSubcommands,
                  AppSettings::DeriveDisplayOrder,
                  AppSettings::VersionlessSubcommands],
-    version = VERSION.as_str()
-)]
+    version = VERSION.as_str())]
 enum Pass {
     /// Initialize new password store and use the provided gpg-id for encryption
     Init {
@@ -138,7 +137,7 @@ enum Pass {
     },
     #[structopt(setting = AppSettings::Hidden)]
     #[doc(hidden)]
-    __Null,
+    __Unexhaustive,
 }
 
 // TODO: documentation
@@ -166,7 +165,6 @@ enum Otp {
         echo: bool,
         #[structopt(required = true)]
         pass_name: String,
-
         // TODO: algo, period, and length
         /// Assumes SHA1 algorithm, 30-second period, and 6 digits
         secret: Option<String>,
@@ -180,7 +178,6 @@ enum Otp {
         echo: bool,
         #[structopt(required = true)]
         pass_name: String,
-
         // TODO: algo, period, and length
         /// Assumes SHA1 algorithm, 30-second period, and 6 digits
         secret: Option<String>,
@@ -203,14 +200,16 @@ enum Otp {
     },
 }
 
+use failure::Fallible;
+
 // TODO: crate::Result<T>
-pub fn opt() {
+pub fn opt() -> Fallible<()> {
     // seed RNG early
     let mut rng = rand::thread_rng();
     let matches = Pass::from_args();
     #[cfg(debug_assertions)]
     println!("{:#?}", matches);
-    let mut commit_message: Option<String> = None;
+    let mut commit_message = None;
 
     match matches {
         Pass::Init { path, key } => init::init(path, key),
@@ -267,24 +266,24 @@ pub fn opt() {
             use crate::subcmds::otp::*;
 
             match otp {
-                Otp::Code { clip, pass_name } => code::code(clip, pass_name),
+                Otp::Code { clip, pass_name } => code::code(clip, pass_name)?,
                 Otp::Insert {
                     force,
                     echo,
                     pass_name,
                     secret,
-                } => insert::insert(force, echo, pass_name, secret),
+                } => insert::insert(force, echo, pass_name, secret)?,
                 Otp::Append {
                     echo,
                     pass_name,
                     secret,
-                } => append::append(echo, pass_name, secret),
+                } => append::append(echo, pass_name, secret)?,
                 Otp::Uri {
                     clip,
                     qrcode,
                     pass_name,
-                } => uri::uri(clip, qrcode, pass_name),
-                Otp::Validate { uri } => validate::validate(uri),
+                } => uri::uri(clip, qrcode, pass_name)?,
+                Otp::Validate { uri } => validate::validate(uri)?,
             }
         }
         _ => {}
@@ -296,5 +295,7 @@ pub fn opt() {
     if let Some(message) = commit_message {
         let _ = message;
     }
+
+    Ok(())
     // }
 }

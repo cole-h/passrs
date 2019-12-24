@@ -4,6 +4,7 @@ use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
 
+use failure::Fallible;
 use git2::Repository;
 #[cfg(feature = "gpg")]
 use gpgme::{Context, Protocol};
@@ -11,7 +12,6 @@ use gpgme::{Context, Protocol};
 use crate::consts::DEFAULT_STORE_PATH;
 use crate::error::PassrsError;
 use crate::utils::*;
-use crate::Result;
 
 // 1. verify provided path
 // 2. verify provided key
@@ -43,7 +43,7 @@ pub fn init(path: Option<String>, key: String) {
 
 // TODO: like gopass, iterate over keys that match
 #[cfg(feature = "gpg")]
-pub fn verify_key<S>(gpg_id: S) -> Result<String>
+pub fn verify_key<S>(gpg_id: S) -> Fallible<String>
 where
     S: Into<String>,
 {
@@ -59,16 +59,16 @@ where
 
         return Ok(email);
     } else {
-        return Err(Box::new(PassrsError::NoPrivateKeyFound));
+        return Err(PassrsError::NoPrivateKeyFound.into());
     }
 }
 
-fn git_init(path: &String) -> Result<Repository> {
+fn git_init(path: &String) -> Fallible<Repository> {
     let repo = match Repository::init(path) {
         Ok(repo) => repo,
         Err(e) => {
             eprintln!("failed to init git repo: {:?}", e);
-            return Err(Box::new(PassrsError::FailedToInitGitRepo));
+            return Err(PassrsError::FailedToInitGitRepo.into());
         }
     };
 
@@ -76,11 +76,11 @@ fn git_init(path: &String) -> Result<Repository> {
 }
 
 // TODO: error handling
-fn setup_repo(path: &String, gpg_id: &String) -> Result<()> {
+fn setup_repo(path: &String, gpg_id: &String) -> Fallible<()> {
     // FIXME: only used to prevent littering my FS when testing
     match fs::create_dir_all(&path) {
         Ok(_) => {}
-        Err(_) => return Err(Box::new(PassrsError::FailedToCreateDirectories)),
+        Err(_) => return Err(PassrsError::FailedToCreateDirectories.into()),
     }
 
     if let Ok(repo) = git_init(&path) {
