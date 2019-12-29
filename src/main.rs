@@ -1,29 +1,47 @@
 // FIXME: replace all print* calls with actual logging
+#![forbid(unsafe_code)]
 
 mod cli;
+mod clipboard;
 mod consts;
 mod error;
-#[cfg(feature = "tui")]
 mod event;
 mod subcmds;
-#[cfg(feature = "tui")]
+mod tree;
 mod ui;
-mod utils;
-
-// use std::error::Error;
-// pub type Result<T> = std::result::Result<T, Box<dyn Error>>;
-// pub type Result<T> = ::std::result::Result<T, failure::Error>;
+mod util;
 
 fn main() -> Result<(), failure::Error> {
+    // FIXME: use to gracefuly handle errors
     // match cli::opt() {
-    //     Ok(_) => Ok(()),
+    //     Ok(_) => {}
     //     Err(e) => {
-    //         println!("{}", e);
+    //         eprintln!("{:?}", e);
     //         std::process::exit(1);
     //     }
     // }
-    // let _ = utils::search_entries("sep")?;
-    ui::display_matches("sep")?;
-    // ui::select().unwrap();
+    // cli::opt()?;
+
+    let tree = tree::tree("/tmp/passrstest")?;
+
+    dbg!(&tree);
+    let trees = tree::find("test", tree)?;
+    dbg!(&trees[0]);
+    for (idx, tree) in trees.iter().enumerate() {
+        println!("{}: {}", idx, tree);
+    }
+
+    // println!("{}", tree);
+
+    // let matches = util::search_entries("reddit")?;
+    // match ui::display_matches(&matches) {
+    //     Ok(_) => {}
+    //     Err(e) => {
+    //         eprintln!("{}", e);
+    //         std::process::exit(1);
+    //     }
+    // }
+    // util::encrypt_bytes_into_file("test.gpg", &[b'l', b'm', b'a', b'o'])?;
+
     Ok(())
 }

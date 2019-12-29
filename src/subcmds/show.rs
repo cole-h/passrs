@@ -1,39 +1,51 @@
-use std::io::Write;
-use std::process::{Command, Stdio};
+use std::process::Command;
 
+use failure::{err_msg, Fallible};
 use ring::digest;
 
-pub fn show(clip: bool, pass_name: String) {
-    let _ = pass_name;
-    let password = "";
-    // let password = get_decrypted_file(default_path, pass_name)
+use crate::clipboard;
+use crate::consts::PASSWORD_STORE_CLIP_TIME;
+use crate::ui::{self, UiResult};
+use crate::util;
 
-    if clip {
-        // spawn subcommand for 45 seconds
-        let hash = hex::encode(digest::digest(&digest::SHA256, password.as_bytes()));
+pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Fallible<()> {
+    let file = ui::display_matches(&pass_name)?;
 
-        Command::new("wl-copy").arg("--clear").status().unwrap();
-        // TODO: genericize over wl-copy, xclip, pbcopy, etc
-        //   ref: https://github.com/atotto/clipboard/blob/e9e854e353882a018e9dc587e3757a8822958941/clipboard_unix.go
-        Command::new("wl-copy")
-            .arg("--trim-newline")
-            .stdin(Stdio::piped())
-            .spawn()
-            .unwrap()
-            .stdin
-            .unwrap()
-            .write_all(password.as_bytes())
-            .unwrap();
+    match file {
+        UiResult::Success(file) => {
+            let password = util::decrypt_file_into_vec(file)?;
 
-        // otherwise, the process doesn't live long enough
-        std::thread::sleep(std::time::Duration::from_millis(50));
+            if let Some(clip) = clip {
+                let contents = match clip {
+                    Some(line) => password
+                        .get(line.saturating_sub(1))
+                        .ok_or_else(|| err_msg(format!("File at line {} was empty", line)))?,
+                    None => password.first().ok_or_else(|| err_msg("Vec was empty"))?,
+                };
+                let hash = hex::encode(digest::digest(&digest::SHA256, contents.as_bytes()));
 
-        Command::new(std::env::current_exe().unwrap())
-            .args(vec!["unclip", "45"])
-            .env("PASSRS_UNCLIP_HASH", hash)
-            .spawn()
-            .unwrap();
+                clipboard::clip(contents)?;
+
+                // otherwise, the process is killed before it can spawn the unclip daemon
+                std::thread::sleep(std::time::Duration::from_millis(50));
+
+                // TODO: maybe abstract away command spawning? No easy way to do this,
+                // though
+                Command::new(std::env::current_exe()?)
+                    .args(vec!["unclip", &PASSWORD_STORE_CLIP_TIME])
+                    .env("PASSRS_UNCLIP_HASH", hash)
+                    .spawn()?;
+            } else {
+                for line in password {
+                    println!("{}", line);
+                }
+            }
+        }
+        UiResult::CopiedToClipboard(file) => {
+            println!("{}", &file[..file.len() - 4]);
+        }
+        _ => {}
     }
 
-    // TODO: show password
+    Ok(())
 }

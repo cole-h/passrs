@@ -1,13 +1,8 @@
-// TODO: refactor git and gpg usage into separate modules
-// use git2::Repository;
-// use gpgme::{Context, Protocol};
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
+use failure::Fallible;
+use structopt::{clap::AppSettings, StructOpt};
 
-// TODO: flesh out error enum and handling
-// use crate::error::PassrsError;
-use crate::consts::VERSION;
 use crate::subcmds::*;
+use crate::util;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -15,124 +10,139 @@ use crate::subcmds::*;
     settings = &[AppSettings::ArgsNegateSubcommands,
                  AppSettings::DeriveDisplayOrder,
                  AppSettings::VersionlessSubcommands],
-    version = VERSION.as_str())]
-enum Pass {
-    /// Initialize new password store and use the provided gpg-id for encryption
+    version = crate::consts::VERSION.as_str())]
+struct Pass {
+    #[structopt(subcommand)]
+    subcmd: Option<PassSub>,
+}
+
+#[derive(Debug, StructOpt)]
+#[structopt(no_version)]
+enum PassSub {
+    /// Initialize new password store and use the provided gpg-id for
+    /// encryption.
     Init {
         #[structopt(long, short = "p")]
+        // TODO: init subfolders with different ids
+        /// The specified gpg-id is assigned to the specified subfolder.
         path: Option<String>,
-        #[structopt(required = true)]
-        key: String,
+        gpg_id: Option<String>,
     },
-    // TODO: make default command
-    /// List passwords
+    /// List secrets.
     Ls { subfolder: Option<String> },
-    /// List passwords that match pass-names
+    /// List secrets that match secret-names.
     Find {
         #[structopt(required = true)]
-        pass_names: Vec<String>,
+        secret_names: Vec<String>,
     },
-    /// Show existing password and optionally put it on the clipboard
-    /// If put on the clipboard, the password will be cleared in 45 seconds
+    /// Show existing secret.
     Show {
-        // TODO: make it so that we can provide either just the flag, or an optional line number
+        #[structopt(required = true)]
+        secret_name: String,
         #[structopt(long, short = "c")]
-        clip: bool,
-        // #[allow(clippy::option_option)]
-        // clip: Option<Option<u32>>,
-        // Some(None) -> just copy, Some(Some(u32)) -> copy line
-        pass_name: String,
+        #[allow(clippy::option_option)]
+        /// Optionally, put the secret on the clipboard. If a line number is
+        /// specified, that line (1-based for better UX) will be copied.
+        /// Otherwise, the first line of the file will be copied.. If put on the
+        /// clipboard, the secret will be cleared in PASSWORD_STORE_CLIP_TIME in
+        /// seconds, or 45 seconds if unspecified.
+        // Some(Some(usize)) => contents of line at usize.wrapping_sub(1)
+        // Some(None) => contents of first line
+        // None => don't clip
+        clip: Option<Option<usize>>,
     },
-    /// Search for password files containing search-string when decrypted
+    /// Search for secret files containing search-string when decrypted.
+    /// GREPOPTIONS are explicitly *NOT* supported.
     Grep {
-        #[structopt()]
+        #[structopt(required = true)]
         search_string: String,
-        // TODO: GREPOPTIONS
-        #[structopt(required = false)]
-        grepoptions: Vec<String>,
     },
-    /// Insert new password
+    /// Insert new secret.
     Insert {
         #[structopt(long, short = "e", conflicts_with = "multiline")]
-        /// Echo the password back to the console during entry
+        /// Echo the secret back to the console during entry.
         echo: bool,
         #[structopt(long, short = "m", conflicts_with = "echo")]
-        /// Enable multiline mode
+        /// Enable multiline mode.
         multiline: bool,
         #[structopt(long, short = "f")]
-        /// Overwriting existing password forcefully
+        /// Overwriting existing secret forcefully.
         force: bool,
         #[structopt(required = true)]
-        pass_name: String,
+        secret_name: String,
     },
-    /// Insert a new password or edit an existing password using $EDITOR
+    /// Insert a new secret or edit an existing secret using $EDITOR.
     Edit {
         #[structopt(required = true)]
-        pass_name: String,
+        secret_name: String,
     },
-    /// Generate a new password of pass-length, or 24 if unspecified
+    /// Generate a new secret of pass-length, or 24 if unspecified.
     Generate {
         #[structopt(long, short = "n")]
-        /// Disable symbols
+        /// Disable special symbols.
         no_symbols: bool,
         #[structopt(long, short = "c")]
-        /// Copy the generated password to the clipboard, which clears after 45 seconds
+        /// Optionally, put the secret on the clipboard. If put on the
+        /// clipboard, the secret will be cleared in PASSWORD_STORE_CLIP_TIME in
+        /// seconds, or 45 seconds if unspecified.
         clip: bool,
         #[structopt(long, short = "i", conflicts_with = "force")]
-        /// Remove only the first line of an existing file with a new password
+        /// Remove only the first line of an existing file with a new secret.
         in_place: bool,
         #[structopt(long, short = "f", conflicts_with = "in_place")]
-        /// Overwriting existing password forcefully
+        /// Overwriting existing secret forcefully.
         force: bool,
         #[structopt(required = true)]
-        pass_name: String,
-        #[structopt(default_value = "24")]
-        pass_length: u32,
+        secret_name: String,
+        /// The length of the secret.
+        secret_length: Option<usize>,
     },
-    /// Remove existing password or directory
+    /// Remove existing secret or directory.
     Rm {
         #[structopt(long, short = "r")]
-        /// Delete recursively
+        /// Delete recursively.
         recursive: bool,
         #[structopt(long, short = "f")]
-        /// Delete forcefully
+        /// Delete forcefully.
         force: bool,
         #[structopt(required = true)]
-        pass_name: String,
+        secret_name: String,
     },
-    /// Rename or move old-path to new-path
+    /// Rename or move old-path to new-path.
     Mv {
         #[structopt(long, short = "f")]
-        /// Move forcefully
+        /// Move forcefully.
         force: bool,
         old_path: String,
         new_path: String,
     },
-    /// Copy old-path to new-path
+    /// Copy old-path to new-path.
     Cp {
         #[structopt(long, short = "f")]
-        /// Copy forcefully
+        /// Copy forcefully.
         force: bool,
         old_path: String,
         new_path: String,
     },
-    // TODO: investigate whether or not it's worth it to use a Rust-git library
-    /// If the password store is a git repository, execute a git command
-    /// specified by git-command-args
+    /// Execute a git command specified by git-command-args inside the password
+    /// store.
     #[structopt(setting = AppSettings::TrailingVarArg)]
     Git {
         #[structopt(required = true)]
         git_command_args: Vec<String>,
     },
     #[cfg(feature = "otp")]
-    // TODO: do I really want to deal with HOTP?
     /// Manage OTP tokens
     Otp(Otp),
     #[structopt(setting = AppSettings::Hidden)]
+    /// Clipboard daemon functionality.
     Unclip {
         #[structopt(required = true)]
+        /// Amount of time to kill the clipboard after.
         timeout: u64,
         #[structopt(long, short = "f")]
+        // TODO: don't clear clipboard unless this flag is set
+        /// Clear clipboard even if checksum mismatches
         force: bool,
     },
     #[structopt(setting = AppSettings::Hidden)]
@@ -140,162 +150,266 @@ enum Pass {
     __Unexhaustive,
 }
 
-// TODO: documentation
-// requies otpauth:// scheme
-/// pass-otp(1)
+/// For managing one-time-password (OTP) tokens with {{TODO: better exe name}}
 #[cfg(feature = "otp")]
 #[derive(Debug, StructOpt)]
+#[structopt(no_version)]
 enum Otp {
-    #[structopt(setting = AppSettings::DisableVersion)]
+    /// Generate and print an OTP code from the secret key in pass-name.
     Code {
         #[structopt(long, short = "c")]
+        /// Optionally, put the generated code on the clipboard. If put on the
+        /// clipboard, the code will be cleared in PASSWORD_STORE_CLIP_TIME in
+        /// seconds, or 45 seconds if unspecified.
         clip: bool,
         #[structopt(required = true)]
-        pass_name: String,
+        secret_name: String,
     },
-    #[structopt(setting = AppSettings::DisableVersion)]
-    /// Insert OTP secret to pass-name
-    // TODO: if pass_name is a folder, write to pass_name/otp
+    /// Insert OTP secret to pass-name.
     Insert {
         #[structopt(long, short = "f")]
-        /// Overwriting existing secret forcefully
+        /// Overwriting existing secret forcefully.
         force: bool,
         #[structopt(long, short = "e")]
-        /// Echo the secret back to the console during entry
+        /// Echo the secret back to the console during entry.
         echo: bool,
         #[structopt(required = true)]
-        pass_name: String,
-        // TODO: algo, period, and length
-        /// Assumes SHA1 algorithm, 30-second period, and 6 digits
+        secret_name: String,
+        /// Assumes SHA1 algorithm, 30-second period, and 6 digits.
         secret: Option<String>,
+        /// One of SHA1, SHA256, or SHA512.
+        algo: Option<String>,
+        /// How often the OTP refreshes.
+        period: Option<u32>,
+        /// The length of the OTP code.
+        length: Option<usize>,
     },
-    #[structopt(setting = AppSettings::DisableVersion)]
-    /// Append an OTP secret to pass-name
-    // TODO: if pass_name is a folder, write to pass_name/otp
+    /// Append an OTP secret to pass-name.
     Append {
         #[structopt(long, short = "e")]
-        /// Echo the secret back to the console during entry
+        /// Echo the secret back to the console during entry.
         echo: bool,
         #[structopt(required = true)]
-        pass_name: String,
-        // TODO: algo, period, and length
-        /// Assumes SHA1 algorithm, 30-second period, and 6 digits
+        secret_name: String,
+        /// Assumes SHA1 algorithm, 30-second period, and 6 digits.
         secret: Option<String>,
+        /// One of SHA1, SHA256, or SHA512.
+        algo: Option<String>,
+        /// How often the OTP refreshes.
+        period: Option<u32>,
+        /// The length of the OTP code.
+        length: Option<usize>,
     },
-    #[structopt(setting = AppSettings::DisableVersion)]
-    /// Print the key URI stored in pass-name
+    /// Print the key URI stored in pass-name.
     Uri {
         #[structopt(long, short = "c", conflicts_with = "qrcode")]
+        /// Copy the URI to the clipboard.
         clip: bool,
         #[structopt(long, short = "q", conflicts_with = "clip")]
-        qrcode: bool,
+        /// Generate a QR code located at the specified path.
+        qrcode: Option<String>,
         #[structopt(required = true)]
-        pass_name: String,
+        secret_name: String,
     },
-    #[structopt(setting = AppSettings::DisableVersion)]
-    /// Test a URI string for validity according to the Key Uri Format
+    /// Test a URI string for validity according to the Key Uri Format.
     Validate {
         #[structopt(required = true)]
         uri: String,
     },
 }
 
-use failure::Fallible;
-
-// TODO: crate::Result<T>
 pub fn opt() -> Fallible<()> {
     // seed RNG early
     let mut rng = rand::thread_rng();
+
     let matches = Pass::from_args();
-    #[cfg(debug_assertions)]
-    println!("{:#?}", matches);
-    let mut commit_message = None;
+    dbg!(&matches);
 
-    match matches {
-        Pass::Init { path, key } => init::init(path, key),
-        Pass::Ls { subfolder } => ls::ls(subfolder),
-        Pass::Find { pass_names } => find::find(pass_names),
-        Pass::Show { clip, pass_name } => show::show(clip, pass_name),
-        Pass::Grep {
-            search_string,
-            grepoptions,
-        } => grep::grep(search_string, grepoptions),
-        Pass::Insert {
-            echo,
-            multiline,
-            force,
-            pass_name,
-        } => commit_message = insert::insert(echo, multiline, force, pass_name),
-        Pass::Edit { pass_name } => commit_message = edit::edit(pass_name),
-        Pass::Generate {
-            no_symbols,
-            clip,
-            in_place,
-            force,
-            pass_name,
-            pass_length,
-        } => {
-            commit_message = generate::generate(
-                &mut rng,
-                no_symbols,
-                clip,
-                in_place,
-                force,
-                pass_name,
-                pass_length,
-            )
-        }
-        Pass::Rm {
-            recursive,
-            force,
-            pass_name,
-        } => rm::rm(recursive, force, pass_name),
-        Pass::Mv {
-            force,
-            old_path,
-            new_path,
-        } => mv::mv(force, old_path, new_path),
-        Pass::Cp {
-            force,
-            old_path,
-            new_path,
-        } => cp::cp(force, old_path, new_path),
-        Pass::Git { git_command_args } => git::git(git_command_args),
-        Pass::Unclip { timeout, force } => unclip::unclip(timeout, force),
-        Pass::Otp(otp) => {
-            use crate::subcmds::otp::*;
-
-            match otp {
-                Otp::Code { clip, pass_name } => code::code(clip, pass_name)?,
-                Otp::Insert {
+    match matches.subcmd {
+        Some(sub) => {
+            match sub {
+                PassSub::Init { path, gpg_id } => {
+                    // NOTE: commit happens inside the init module unlike every other
+                    // module, where we explicitly commit
+                    init::init(path, gpg_id)?;
+                }
+                PassSub::Ls { subfolder } => {
+                    util::verify_store_exists()?;
+                    ls::ls(subfolder)?;
+                }
+                PassSub::Find { secret_names } => {
+                    util::verify_store_exists()?;
+                    find::find(secret_names)?;
+                }
+                PassSub::Show { clip, secret_name } => {
+                    util::verify_store_exists()?;
+                    show::show(clip, secret_name)?;
+                }
+                PassSub::Grep { search_string } => {
+                    util::verify_store_exists()?;
+                    grep::grep(search_string)?;
+                }
+                PassSub::Insert {
+                    echo,
+                    multiline,
                     force,
-                    echo,
-                    pass_name,
-                    secret,
-                } => insert::insert(force, echo, pass_name, secret)?,
-                Otp::Append {
-                    echo,
-                    pass_name,
-                    secret,
-                } => append::append(echo, pass_name, secret)?,
-                Otp::Uri {
+                    secret_name,
+                } => {
+                    #[cfg(not(debug_assertions))]
+                    panic!(
+                        "Functions that may modify the store are currently disabled for safety reasons."
+                    );
+                    util::verify_store_exists()?;
+                    let commit_message = insert::insert(echo, multiline, force, secret_name)?;
+                    util::commit(commit_message)?;
+                }
+                // TODO: PassSub::Append { echo, multiline, secret_name }
+                PassSub::Edit { secret_name } => {
+                    #[cfg(not(debug_assertions))]
+                    panic!(
+                        "Functions that may modify the store are currently disabled for safety reasons."
+                    );
+                    util::verify_store_exists()?;
+                    let commit_message = edit::edit(secret_name)?;
+                    util::commit(commit_message)?;
+                }
+                PassSub::Generate {
+                    no_symbols,
                     clip,
-                    qrcode,
-                    pass_name,
-                } => uri::uri(clip, qrcode, pass_name)?,
-                Otp::Validate { uri } => validate::validate(uri)?,
+                    in_place,
+                    force,
+                    secret_name,
+                    secret_length,
+                } => {
+                    #[cfg(not(debug_assertions))]
+                    panic!(
+                        "Functions that may modify the store are currently disabled for safety reasons."
+                    );
+                    util::verify_store_exists()?;
+                    let commit_message = generate::generate(
+                        &mut rng,
+                        no_symbols,
+                        clip,
+                        in_place,
+                        force,
+                        secret_name,
+                        secret_length,
+                    )?;
+                    util::commit(commit_message)?;
+                }
+                PassSub::Rm {
+                    recursive,
+                    force,
+                    secret_name,
+                } => {
+                    #[cfg(not(debug_assertions))]
+                    panic!(
+                        "Functions that may modify the store are currently disabled for safety reasons."
+                    );
+                    util::verify_store_exists()?;
+                    rm::rm(recursive, force, secret_name)?
+                }
+                PassSub::Mv {
+                    force,
+                    old_path,
+                    new_path,
+                } => {
+                    #[cfg(not(debug_assertions))]
+                    panic!(
+                        "Functions that may modify the store are currently disabled for safety reasons."
+                    );
+                    util::verify_store_exists()?;
+                    let commit_message = mv::mv(force, old_path, new_path)?;
+                    util::commit(commit_message)?;
+                }
+                PassSub::Cp {
+                    force,
+                    old_path,
+                    new_path,
+                } => {
+                    #[cfg(not(debug_assertions))]
+                    panic!(
+                        "Functions that may modify the store are currently disabled for safety reasons."
+                    );
+                    util::verify_store_exists()?;
+                    let commit_message = cp::cp(force, old_path, new_path)?;
+                    util::commit(commit_message)?;
+                }
+                PassSub::Git { git_command_args } => {
+                    util::verify_store_exists()?;
+                    git::git(git_command_args)?;
+                }
+                PassSub::Unclip { timeout, force } => {
+                    util::verify_store_exists()?;
+                    unclip::unclip(timeout, force)?;
+                }
+                #[cfg(feature = "otp")]
+                PassSub::Otp(otp) => {
+                    use crate::subcmds::otp::*;
+                    match otp {
+                        Otp::Code { clip, secret_name } => {
+                            util::verify_store_exists()?;
+                            code::code(clip, secret_name)?;
+                        }
+                        Otp::Insert {
+                            force,
+                            echo,
+                            secret_name,
+                            secret,
+                            algo,
+                            period,
+                            length,
+                        } => {
+                            #[cfg(not(debug_assertions))]
+                            panic!(
+                                "Functions that may modify the store are currently disabled for safety reasons."
+                            );
+                            let _ = (algo, period, length);
+                            util::verify_store_exists()?;
+                            let commit_message = insert::insert(force, echo, secret_name, secret)?;
+                            util::commit(commit_message)?;
+                        }
+                        Otp::Append {
+                            echo,
+                            secret_name,
+                            secret,
+                            algo,
+                            period,
+                            length,
+                        } => {
+                            #[cfg(not(debug_assertions))]
+                            panic!(
+                                "Functions that may modify the store are currently disabled for safety reasons."
+                            );
+                            let _ = (algo, period, length);
+                            util::verify_store_exists()?;
+                            let commit_message = append::append(echo, secret_name, secret)?;
+                            util::commit(commit_message)?;
+                        }
+                        Otp::Uri {
+                            clip,
+                            qrcode,
+                            secret_name,
+                        } => {
+                            util::verify_store_exists()?;
+                            uri::uri(clip, qrcode, secret_name)?;
+                        }
+                        Otp::Validate { uri } => {
+                            util::verify_store_exists()?;
+                            validate::validate(uri)?;
+                        }
+                    }
+                }
+                _ => {}
             }
         }
-        _ => {}
-    }
-
-    // TODO: check dirty and commit
-    // if worktree is dirty {
-    //     commit(commit_message)
-    if let Some(message) = commit_message {
-        let _ = message;
+        // If no command is specified, `ls` the entire password store, like
+        // `pass` does
+        None => {
+            util::verify_store_exists()?;
+            ls::ls(None)?;
+        }
     }
 
     Ok(())
-    // }
 }

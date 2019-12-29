@@ -1,21 +1,17 @@
 use std::process::{Command, Stdio};
 
-use crate::consts::PASSWORD_STORE_DIR;
+use failure::Fallible;
 
-pub fn git(args: Vec<String>) {
-    let git_binary = envmnt::get_or("PASSRS_GIT_BINARY", "/usr/bin/git");
+use crate::consts::{PASSRS_GIT_BINARY, PASSWORD_STORE_DIR};
 
-    Command::new(&git_binary)
+pub fn git(args: Vec<String>) -> Fallible<()> {
+    // TODO: command genericism stuff idk
+    Command::new(&*PASSRS_GIT_BINARY)
         .args(&args)
         .current_dir(PASSWORD_STORE_DIR.to_string())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
-        .output()
-        .map_err(|err| {
-            println!(
-                "Failed to execute command: \"{} {:?}\": {}",
-                git_binary, args, err
-            )
-        })
-        .ok();
+        .output()?;
+
+    Ok(())
 }

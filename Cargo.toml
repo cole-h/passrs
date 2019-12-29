@@ -1,6 +1,6 @@
 [package]
 name = "passrs"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Cole Helbling <cole.e.helbling@outlook.com>"]
 edition = "2018"
 build = "build.rs"
@@ -15,24 +15,32 @@ git2 = "0.11"
 hex = "0.4"
 rand = "0.7"
 ring = "0.16"
-structopt = "0.3"
-rpassword = "4.0"
+structopt = { git = "https://github.com/TeXitoi/structopt" }
+# structopt = "0.3"
+rpassword = { path = "../rpassword" }
 rprompt = "1.0"
 lazy_static = "1.4"
 failure = "0.1"
 walkdir = "2.2"
-regex = { version = "1.3", default-features = false, features = ["std"] }
+gpgme = "0.9"
+tui = "0.8"
+termion = "1.5"
+petgraph = "0.5"
 
-tui = { version = "0.8", optional = true }
-termion = { version = "1.5", optional = true }
-gpgme = { version = "0.9", optional = true }
-otpauth = { version = "0.4", optional = true }
+grep-searcher = "0.1"
+grep-printer = "0.1"
+grep-regex = "0.1"
+termcolor = "1.0"
+atty = "0.2"
+
+qrcode = { version = "0.11", default-features = false, features = ["svg"], optional = true }
+regex = { version = "1.3", default-features = false, features = ["std"], optional = true }
+boringauth = { version = "0.9", optional = true }
 
 [build-dependencies]
 rustc_tools_util = "0.2"
 
 [features]
-default = ["gpg", "otp", "ui"]
-gpg = ["gpgme"]
-otp = ["otpauth"]
-ui = ["tui", "termion"]
+default = ["otp"]
+
+otp = ["boringauth", "regex", "qrcode"]

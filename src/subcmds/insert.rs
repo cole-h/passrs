@@ -1,49 +1,67 @@
-use crate::consts::{DEFAULT_STORE_PATH, EDITOR};
-use crate::utils;
+use failure::Fallible;
 
-pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Option<String> {
-    // if multiline, spawn editor
-    let commit_message = if multiline {
-        format!("Save secret to {} using {:?}", pass_name, *EDITOR)
-    } else {
-        format!("Save secret to {}", pass_name)
-    };
+use crate::consts::PASSWORD_STORE_DIR;
+use crate::error::PassrsError;
+use crate::util;
 
-    // if path/file exists && !force {
-    //   warn: path exists
-    //   return
-    // }
+pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fallible<String> {
+    let path = format!("{}/{}.gpg", *PASSWORD_STORE_DIR, pass_name);
 
-    if utils::verify_path(&format!("{}/{}", *DEFAULT_STORE_PATH, pass_name)).is_ok() && !force {
-        // warn: path exists
-        // return
+    if util::path_exists(&path).is_err() && !force {
+        match rprompt::prompt_reply_stdout(&format!(
+            "An entry exists for {}. Overwrite it? [y/N] ",
+            pass_name
+        )) {
+            Ok(reply) if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') => {
+                std::fs::OpenOptions::new()
+                    .write(true)
+                    .truncate(true)
+                    .open(&path)?;
+            }
+            _ => return Err(PassrsError::UserAbort.into()),
+        }
     }
 
     let password = if echo {
-        rprompt::prompt_reply_stdout(&format!("Enter password for {}", pass_name)).ok()
+        Some(rprompt::prompt_reply_stdout(&format!(
+            "Enter password for {}: ",
+            pass_name
+        ))?)
     } else if multiline {
-        None
+        println!(
+            "Enter the contents of {} and press Ctrl+D when finished:\n",
+            pass_name
+        );
+        let mut input = Vec::new();
+
+        use std::io::BufRead;
+        let stdin = std::io::stdin();
+        for line in stdin.lock().lines() {
+            input.push(line?);
+        }
+
+        Some(input.join("\n"))
     } else {
-        let input = rpassword::prompt_password_stdout(&format!("Enter password for {}", pass_name))
-            .unwrap_or(String::from("1"));
+        // TODO: send PR upstream to revert
+        // d4cc03171a3bde2a701b261e0f3ec227a43a3b51 "Permit lack of newline,
+        // given possible piping or EOF. (#29)" OR implement an EOF-reader
+        let input =
+            rpassword::prompt_password_stdout(&format!("Enter password for {}: ", pass_name))?;
         let check =
-            rpassword::prompt_password_stdout(&format!("Retype password for {}", pass_name))
-                .unwrap_or(String::from("2"));
+            rpassword::prompt_password_stdout(&format!("Retype password for {}: ", pass_name))?;
 
         if input == check {
             Some(input)
         } else {
             // TODO: zeroize or drop input and check
-            eprintln!("Error: the entered passwords do not match.");
-            return None;
+            return Err(PassrsError::PasswordsDontMatch.into());
         }
     };
 
     // if we prompted the user for a password and got one
     if let Some(password) = password {
-        let _ = password;
-        // save_password(pass_name, password)
+        util::encrypt_bytes_into_file(path, password.as_bytes())?;
     }
 
-    Some(commit_message)
+    Ok(format!("Add given password for {} to store", pass_name))
 }

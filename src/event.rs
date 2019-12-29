@@ -1,3 +1,7 @@
+#![allow(dead_code)]
+// input_handle and tick_handle are never used directly, but necessary
+// nonetheless
+
 use std::io;
 use std::sync::mpsc;
 use std::thread;
@@ -29,7 +33,7 @@ impl Default for Config {
     fn default() -> Config {
         Config {
             exit_key: Key::Char('q'),
-            tick_rate: Duration::from_millis(250),
+            tick_rate: Duration::from_micros(16666),
         }
     }
 }
@@ -46,30 +50,29 @@ impl Events {
             thread::spawn(move || {
                 let stdin = io::stdin();
                 for evt in stdin.keys() {
-                    match evt {
-                        Ok(key) => {
-                            if let Err(_) = tx.send(Event::Input(key)) {
-                                return;
-                            }
-                            if key == config.exit_key {
-                                return;
-                            }
+                    if let Ok(key) = evt {
+                        if tx.send(Event::Input(key)).is_err() {
+                            return;
                         }
-                        Err(_) => {}
+                        if key == config.exit_key {
+                            return;
+                        }
                     }
                 }
             })
         };
         let tick_handle = {
-            let tx = tx.clone();
             thread::spawn(move || {
-                let tx = tx.clone();
                 loop {
-                    tx.send(Event::Tick).unwrap();
+                    // NOTE: This panics on SendError which usually occurs when
+                    // the UI finishes displaying, which is fine -- ignore the
+                    // result
+                    let _ = tx.send(Event::Tick);
                     thread::sleep(config.tick_rate);
                 }
             })
         };
+
         Events {
             rx,
             input_handle,
