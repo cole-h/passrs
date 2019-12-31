@@ -23,7 +23,6 @@ enum PassSub {
     /// encryption.
     Init {
         #[structopt(long, short = "p")]
-        // TODO: init subfolders with different ids
         /// The specified gpg-id is assigned to the specified subfolder.
         path: Option<String>,
         gpg_id: Option<String>,
@@ -141,7 +140,6 @@ enum PassSub {
         /// Amount of time to kill the clipboard after.
         timeout: u64,
         #[structopt(long, short = "f")]
-        // TODO: don't clear clipboard unless this flag is set
         /// Clear clipboard even if checksum mismatches
         force: bool,
     },
@@ -219,18 +217,14 @@ enum Otp {
 }
 
 pub fn opt() -> Fallible<()> {
-    // seed RNG early
-    let mut rng = rand::thread_rng();
-
     let matches = Pass::from_args();
     dbg!(&matches);
 
+    // NOTE: committing is handled in any subcommand that may modify the store
     match matches.subcmd {
         Some(sub) => {
             match sub {
                 PassSub::Init { path, gpg_id } => {
-                    // NOTE: commit happens inside the init module unlike every other
-                    // module, where we explicitly commit
                     init::init(path, gpg_id)?;
                 }
                 PassSub::Ls { subfolder } => {
@@ -260,18 +254,16 @@ pub fn opt() -> Fallible<()> {
                         "Functions that may modify the store are currently disabled for safety reasons."
                     );
                     util::verify_store_exists()?;
-                    let commit_message = insert::insert(echo, multiline, force, secret_name)?;
-                    util::commit(commit_message)?;
+                    insert::insert(echo, multiline, force, secret_name)?;
                 }
-                // TODO: PassSub::Append { echo, multiline, secret_name }
+                // TODO: PassSub::Append { echo, multiline, secret_name } => {}
                 PassSub::Edit { secret_name } => {
                     #[cfg(not(debug_assertions))]
                     panic!(
                         "Functions that may modify the store are currently disabled for safety reasons."
                     );
                     util::verify_store_exists()?;
-                    let commit_message = edit::edit(secret_name)?;
-                    util::commit(commit_message)?;
+                    edit::edit(secret_name)?;
                 }
                 PassSub::Generate {
                     no_symbols,
@@ -286,8 +278,7 @@ pub fn opt() -> Fallible<()> {
                         "Functions that may modify the store are currently disabled for safety reasons."
                     );
                     util::verify_store_exists()?;
-                    let commit_message = generate::generate(
-                        &mut rng,
+                    generate::generate(
                         no_symbols,
                         clip,
                         in_place,
@@ -295,7 +286,6 @@ pub fn opt() -> Fallible<()> {
                         secret_name,
                         secret_length,
                     )?;
-                    util::commit(commit_message)?;
                 }
                 PassSub::Rm {
                     recursive,
@@ -307,7 +297,7 @@ pub fn opt() -> Fallible<()> {
                         "Functions that may modify the store are currently disabled for safety reasons."
                     );
                     util::verify_store_exists()?;
-                    rm::rm(recursive, force, secret_name)?
+                    rm::rm(recursive, force, secret_name)?;
                 }
                 PassSub::Mv {
                     force,
@@ -319,8 +309,7 @@ pub fn opt() -> Fallible<()> {
                         "Functions that may modify the store are currently disabled for safety reasons."
                     );
                     util::verify_store_exists()?;
-                    let commit_message = mv::mv(force, old_path, new_path)?;
-                    util::commit(commit_message)?;
+                    mv::mv(force, old_path, new_path)?;
                 }
                 PassSub::Cp {
                     force,
@@ -332,8 +321,7 @@ pub fn opt() -> Fallible<()> {
                         "Functions that may modify the store are currently disabled for safety reasons."
                     );
                     util::verify_store_exists()?;
-                    let commit_message = cp::cp(force, old_path, new_path)?;
-                    util::commit(commit_message)?;
+                    cp::cp(force, old_path, new_path)?;
                 }
                 PassSub::Git { git_command_args } => {
                     util::verify_store_exists()?;
@@ -366,8 +354,7 @@ pub fn opt() -> Fallible<()> {
                             );
                             let _ = (algo, period, length);
                             util::verify_store_exists()?;
-                            let commit_message = insert::insert(force, echo, secret_name, secret)?;
-                            util::commit(commit_message)?;
+                            insert::insert(force, echo, secret_name, secret)?;
                         }
                         Otp::Append {
                             echo,
@@ -383,8 +370,7 @@ pub fn opt() -> Fallible<()> {
                             );
                             let _ = (algo, period, length);
                             util::verify_store_exists()?;
-                            let commit_message = append::append(echo, secret_name, secret)?;
-                            util::commit(commit_message)?;
+                            append::append(echo, secret_name, secret)?;
                         }
                         Otp::Uri {
                             clip,

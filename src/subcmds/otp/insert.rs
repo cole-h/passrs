@@ -1,23 +1,34 @@
+use std::io::{self, Write};
+use termion::input::TermRead;
+
 use failure::Fallible;
 
-use crate::consts::PASSWORD_STORE_DIR;
 use crate::error::PassrsError;
 use crate::util;
 
-pub fn insert(
-    force: bool,
-    echo: bool,
-    pass_name: String,
-    secret: Option<String>,
-) -> Fallible<String> {
-    let path = format!("{}/{}.gpg", *PASSWORD_STORE_DIR, pass_name);
+pub fn insert(force: bool, echo: bool, pass_name: String, secret: Option<String>) -> Fallible<()> {
+    let path = util::canonicalize_path(&pass_name)?;
+    let path = format!("{}.gpg", path);
+
+    // TODO: recursively create dir
+    // match fs::create_dir_all(&path) {} -- if "Exists", go deeper
+    let stdin = std::io::stdin();
+    let mut stdin = stdin.lock();
+    let stdout = std::io::stdout();
+    let mut stdout = stdout.lock();
 
     if util::path_exists(&path).is_err() && !force {
-        match rprompt::prompt_reply_stdout(&format!(
+        write!(
+            stdout,
             "An entry exists for {}. Overwrite it? [y/N] ",
             pass_name
-        )) {
-            Ok(reply) if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') => {
+        )?;
+        io::stdout().flush()?;
+
+        match stdin.read_passwd(&mut stdout)? {
+            Some(reply)
+                if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
+            {
                 std::fs::OpenOptions::new()
                     .write(true)
                     .truncate(true)
@@ -44,6 +55,6 @@ pub fn insert(
     // TODO: insert secret
     let _ = secret;
 
-    let message = format!("Add OTP secret for {} to store", pass_name);
-    Ok(message)
+    util::commit(format!("Add OTP secret for {} to store", pass_name))?;
+    Ok(())
 }

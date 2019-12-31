@@ -6,10 +6,10 @@ edition = "2018"
 build = "build.rs"
 publish = false
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-env_logger = "0.7"
+# TODO: decide which logger to use
+# env_logger = "0.7"
+# tracing = "0.1"
 envmnt = "0.7"
 git2 = "0.11"
 hex = "0.4"
@@ -17,15 +17,15 @@ rand = "0.7"
 ring = "0.16"
 structopt = { git = "https://github.com/TeXitoi/structopt" }
 # structopt = "0.3"
-rpassword = { path = "../rpassword" }
-rprompt = "1.0"
 lazy_static = "1.4"
 failure = "0.1"
 walkdir = "2.2"
 gpgme = "0.9"
 tui = "0.8"
 termion = "1.5"
-petgraph = "0.5"
+# ignore = "0.4"
+# glob = "0.3"
+zeroize = "1.1"
 
 grep-searcher = "0.1"
 grep-printer = "0.1"
@@ -36,11 +36,13 @@ atty = "0.2"
 qrcode = { version = "0.11", default-features = false, features = ["svg"], optional = true }
 regex = { version = "1.3", default-features = false, features = ["std"], optional = true }
 boringauth = { version = "0.9", optional = true }
+sublime_fuzzy =  { version = "0.6", optional = true }
 
 [build-dependencies]
 rustc_tools_util = "0.2"
 
 [features]
-default = ["otp"]
+default = ["otp", "fuzzy"]
 
 otp = ["boringauth", "regex", "qrcode"]
+fuzzy = ["sublime_fuzzy"]

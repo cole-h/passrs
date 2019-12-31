@@ -5,6 +5,7 @@ use termion::event::Key;
 use termion::input::MouseTerminal;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
+use termion::{color, style};
 use tui::backend::TermionBackend;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
@@ -20,6 +21,7 @@ use crate::util;
 pub enum UiResult {
     Success(String),
     CopiedToClipboard(String),
+    SpawnEditor(String),
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -83,31 +85,13 @@ impl Ui {
 /// | <↑/↓> to change the selection, <→> to show, <←> to copy, |
 /// | ~~<s> to sync~~, <e> to edit, <ESC> to quit              |
 /// +----------------------------------------------------------+
-pub fn display_matches(target: &str) -> Fallible<UiResult> {
+fn display_matches(matches: Vec<String>) -> Fallible<UiResult> {
     let bin_path = std::env::current_exe()?;
     let binary_name = bin_path
         .file_name()
         .ok_or_else(|| err_msg("Option did not contain a value."))?
         .to_str()
         .ok_or_else(|| err_msg("Option did not contain a value."))?;
-
-    let matches = util::search_entries(target)?;
-
-    if matches.len() == 1 {
-        return Ok(UiResult::Success(matches[0].to_string()));
-    }
-
-    // TODO: color or no color?
-    // if I can find a way to add color to the failure display messages, color;
-    // else, no color
-    eprintln!(
-        "{}Entry '{}' not found. Starting search...{}\n",
-        // termion::color::Fg(termion::color::Yellow),
-        "",
-        &target,
-        // termion::color::Fg(termion::color::Reset)
-        ""
-    );
 
     let mut app = Ui::new(matches.clone());
     let mut entry = None;
@@ -200,7 +184,7 @@ pub fn display_matches(target: &str) -> Fallible<UiResult> {
                     entry = app.selected;
                     if let Some(entry) = app.selected {
                         let entry = matches[entry].to_string();
-                        let contents = util::decrypt_file_into_vec(&entry)?;
+                        let contents = util::decrypt_file_into_strings(&entry)?;
                         clipboard::clip(&contents[0])?;
 
                         return Ok(UiResult::CopiedToClipboard(entry));
@@ -222,8 +206,11 @@ pub fn display_matches(target: &str) -> Fallible<UiResult> {
                     break;
                 }
                 Key::Char('e') => {
-                    // TODO: spawn editor
-                    break;
+                    entry = app.selected;
+                    if let Some(entry) = app.selected {
+                        let entry = matches[entry].to_string();
+                        return Ok(UiResult::SpawnEditor(entry));
+                    }
                 }
                 Key::PageDown => {
                     app.selected = if let Some(selected) = app.selected {
@@ -264,10 +251,38 @@ pub fn display_matches(target: &str) -> Fallible<UiResult> {
         Ok(UiResult::Success(matches[entry].to_string()))
     } else {
         // println!(
-        //     "{}Error: user aborted{}",
-        //     termion::color::Fg(termion::color::Red),
-        //     termion::color::Fg(termion::color::Reset)
+        //     "{red}Error: user aborted{reset}",
+        //     red = color::Fg(color::Red),
+        //     reset = style::Reset
         // );
         Err(PassrsError::UserAbort.into())
     }
 }
+
+pub fn display_matches_for_target(target: &str) -> Fallible<UiResult> {
+    let matches = util::find_target_single(target)?;
+
+    if matches.len() == 1 {
+        return Ok(UiResult::Success(matches[0].to_string()));
+    }
+
+    // TODO: color or no color?
+    // if I can find a way to add color to the failure display messages, color;
+    // else, no color
+    eprintln!(
+        "{yellow}Entry '{}' not found. Starting search...{reset}\n",
+        &target,
+        yellow = color::Fg(color::Yellow),
+        reset = style::Reset
+    );
+
+    Ok(display_matches(matches)?)
+}
+
+// pub fn display_matches_for_targets(matches: Vec<String>) -> Fallible<UiResult> {
+//     if matches.len() == 1 {
+//         return Ok(UiResult::Success(matches[0].to_string()));
+//     }
+
+//     Ok(display_matches(matches)?)
+// }

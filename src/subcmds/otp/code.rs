@@ -1,4 +1,11 @@
-// TODO: own impl of TOTP and HOTP to drop transitive 4 deps
+// FIXME: use `otpauth` -- from_base32; add customization a la boringauth::oath
+// (hash funcs, length, etc)
+// let auth = TOTP::from_base32(secret).unwrap();
+// let timestamp = SystemTime::now()
+//     .duration_since(UNIX_EPOCH)
+//     .unwrap()
+//     .as_secs();
+// let code = auth.generate(30, timestamp);
 
 use boringauth::oath::{HOTPBuilder, HashFunction, TOTPBuilder};
 use failure::{err_msg, Fallible};
@@ -9,16 +16,16 @@ use crate::ui::{self, UiResult};
 use crate::util;
 
 pub fn code(clip: bool, pass_name: String) -> Fallible<()> {
-    let file = ui::display_matches(&pass_name)?;
+    let file = ui::display_matches_for_target(&pass_name)?;
 
     if let UiResult::Success(file) = file {
-        let otp = util::decrypt_file_into_vec(file)?;
+        let otp = util::decrypt_file_into_strings(file)?;
         let otp = otp.first().ok_or_else(|| err_msg("Vec was empty"))?;
 
         // Ensure `otp` is a valid URI
         validate::validate(otp)?;
 
-        // let type = validate::get_type(otp)?;
+        // let otp_type = validate::get_type(otp)?;
         // let counter = validate::get_counter(otp)?;
         let base32_secret = validate::get_base32_secret(otp)?;
         let period = validate::get_period(otp)?;

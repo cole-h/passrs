@@ -10,10 +10,10 @@ use crate::ui::{self, UiResult};
 use crate::util;
 
 pub fn uri(clip: bool, qrcode: Option<String>, pass_name: String) -> Fallible<()> {
-    let file = ui::display_matches(&pass_name)?;
+    let file = ui::display_matches_for_target(&pass_name)?;
 
     if let UiResult::Success(file) = file {
-        let otp = util::decrypt_file_into_vec(file)?;
+        let otp = util::decrypt_file_into_strings(file)?;
         let otp = otp.first().ok_or_else(|| err_msg("Vec was empty"))?.trim();
 
         if clip {

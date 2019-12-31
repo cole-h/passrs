@@ -2,18 +2,19 @@ use std::process::Command;
 
 use failure::{err_msg, Fallible};
 use ring::digest;
+use termion::{color, style};
 
 use crate::clipboard;
-use crate::consts::PASSWORD_STORE_CLIP_TIME;
+use crate::consts::{PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_DIR};
 use crate::ui::{self, UiResult};
 use crate::util;
 
 pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Fallible<()> {
-    let file = ui::display_matches(&pass_name)?;
+    let file = ui::display_matches_for_target(&pass_name)?;
 
     match file {
         UiResult::Success(file) => {
-            let password = util::decrypt_file_into_vec(file)?;
+            let password = util::decrypt_file_into_strings(file)?;
 
             if let Some(clip) = clip {
                 let contents = match clip {
@@ -26,7 +27,7 @@ pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Fallible<()> {
 
                 clipboard::clip(contents)?;
 
-                // otherwise, the process is killed before it can spawn the unclip daemon
+                // otherwise, the unclip daemon doesn't have a chance to spawn
                 std::thread::sleep(std::time::Duration::from_millis(50));
 
                 // TODO: maybe abstract away command spawning? No easy way to do this,
@@ -36,13 +37,25 @@ pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Fallible<()> {
                     .env("PASSRS_UNCLIP_HASH", hash)
                     .spawn()?;
             } else {
+                println!("{}", pass_name);
                 for line in password {
-                    println!("{}", line);
+                    println!(
+                        "{yellow}{}{reset}",
+                        line,
+                        yellow = color::Fg(color::Yellow),
+                        reset = style::Reset,
+                    );
                 }
             }
         }
         UiResult::CopiedToClipboard(file) => {
-            println!("{}", &file[..file.len() - 4]);
+            println!(
+                "Copied {yellow}{}{reset} to the clipboard, which will clear in {} seconds.",
+                &file[PASSWORD_STORE_DIR.len()..file.len() - 4],
+                *PASSWORD_STORE_CLIP_TIME,
+                yellow = color::Fg(color::Yellow),
+                reset = style::Reset,
+            );
         }
         _ => {}
     }

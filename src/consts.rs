@@ -1,3 +1,5 @@
+//! Technically not actual constants, but runtime constants.
+
 use lazy_static::lazy_static;
 
 pub const DIGITS: &[u8] = b"0123456789";
@@ -30,6 +32,7 @@ lazy_static! {
     pub static ref PASSWORD_STORE_KEY: String = envmnt::get_or("PASSWORD_STORE_KEY", "");
     pub static ref PASSWORD_STORE_GPG_OPTS: String = envmnt::get_or("PASSWORD_STORE_GPG_OPTS", "");
     // NOTE: Wayland is the target for this, which doesn't use the X clipboard.
+    // However, this will be implemented when I get around to cleaning up clipboard.rs
     // pub static ref PASSWORD_STORE_X_SELECTION: String =
     //     envmnt::get_or("PASSWORD_STORE_X_SELECTION", "");
     pub static ref PASSWORD_STORE_CLIP_TIME: String =
@@ -50,6 +53,6 @@ lazy_static! {
         }
     };
     pub static ref PASSWORD_STORE_SIGNING_KEY: String =
-        envmnt::get_or("PASSWORD_STORE_SIGNING_KEY", "");
+        envmnt::get_or("PASSWORD_STORE_SIGNING_KEY", &PASSWORD_STORE_KEY);
     pub static ref GREP_OPTIONS: Vec<String> = envmnt::get_list("GREP_OPTIONS").unwrap_or_default();
 }

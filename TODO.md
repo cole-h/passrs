@@ -8,27 +8,28 @@
 TODO: ensure canonicalize_path is used
 TODO: ensure directories exist in functions that try to create encrypted files
 
-- init
-- ls
-- find
-- show
-- grep
-- insert
-- edit
-- generate
+/ init
++ ls
+/ find
+/ show
+  - 'e' to spawn editor
++ grep
+/ insert
+/ edit
++ generate
   + The generated password for **Network/nextcloud/cole/password** (underlined) is:
       **password_here!lol** (in yellow)
-- rm
-- mv
-- cp
-- git
-- unclip
++ rm
++ mv
++ cp
++ git
++ unclip
 - otp
-  - code
+  + code
   - insert
   - append
-  - uri
-  - validate
+  + uri
+  + validate
 
 - unix pass functions
   -    pass init [--path=subfolder,-p subfolder] gpg-id...

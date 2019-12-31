@@ -1,36 +1,47 @@
+use std::io::{self, Write};
 use std::process::Command;
+use termion::input::TermRead;
 
 use failure::Fallible;
-use rand::Rng;
 use ring::digest;
-use termion::color;
-use termion::style;
+use termion::{color, style};
 
 use crate::clipboard;
 use crate::consts::{
     PASSWORD_STORE_CHARACTER_SET, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS,
-    PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_DIR, PASSWORD_STORE_GENERATED_LENGTH,
+    PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_GENERATED_LENGTH,
 };
 use crate::error::PassrsError;
 use crate::util;
 
 pub fn generate(
-    rng: &mut impl Rng,
     no_symbols: bool,
     clip: bool,
     in_place: bool,
     force: bool,
     pass_name: String,
     pass_length: Option<usize>,
-) -> Fallible<String> {
-    let path = format!("{}/{}.gpg", *PASSWORD_STORE_DIR, pass_name);
+) -> Fallible<()> {
+    let path = util::canonicalize_path(&pass_name)?;
+    let path = format!("{}.gpg", path);
 
-    if util::path_exists(&path).is_err() && !force && !in_place {
-        match rprompt::prompt_reply_stdout(&format!(
+    let stdin = std::io::stdin();
+    let mut stdin = stdin.lock();
+    let stdout = std::io::stdout();
+    let mut stdout = stdout.lock();
+
+    if util::path_exists(&path).is_err() && !force {
+        write!(
+            stdout,
             "An entry exists for {}. Overwrite it? [y/N] ",
             pass_name
-        )) {
-            Ok(reply) if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') => {
+        )?;
+        io::stdout().flush()?;
+
+        match stdin.read_passwd(&mut stdout)? {
+            Some(reply)
+                if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
+            {
                 std::fs::OpenOptions::new()
                     .write(true)
                     .truncate(true)
@@ -51,14 +62,10 @@ pub fn generate(
     } else {
         *PASSWORD_STORE_GENERATED_LENGTH
     };
-    let mut password_bytes: Vec<u8> = Vec::with_capacity(len as usize);
 
-    for _ in 0..len {
-        let idx = rng.gen_range(0, set.len());
-        password_bytes.push(set[idx]);
-    }
-
+    let password_bytes = util::generate_chars_from_set(set, len)?;
     let password = std::str::from_utf8(&password_bytes)?.to_owned();
+
     println!(
         "{bold}The generated password for {underline}{}{reset}{bold} is:\n{yellow}{bold}{}{reset}",
         pass_name,
@@ -91,17 +98,19 @@ pub fn generate(
 
     if in_place {
         // TODO: ensure file[0] is actually the proper entry
-        let files = util::search_entries(&pass_name)?;
+        let files = util::find_target_single(&pass_name)?;
         assert_eq!(files.len(), 1);
-        let mut existing = util::decrypt_file_into_vec(files[0].clone())?;
+        let mut existing = util::decrypt_file_into_strings(files[0].clone())?;
         existing[0] = password;
 
         let existing = existing.join("\n");
         let existing = existing.as_bytes();
-        util::encrypt_bytes_into_file(&path, existing)?;
-        Ok(format!("Replace generated secret for {}", pass_name))
+        util::encrypt_bytes_into_file(existing, &path)?;
+        util::commit(format!("Replace generated secret for {}", pass_name))?;
+        Ok(())
     } else {
-        util::encrypt_bytes_into_file(&path, &password_bytes)?;
-        Ok(format!("Save generated secret for {}", pass_name))
+        util::encrypt_bytes_into_file(&password_bytes, &path)?;
+        util::commit(format!("Save generated secret for {}", pass_name))?;
+        Ok(())
     }
 }

@@ -1,5 +1,4 @@
 use failure::{err_msg, Fallible};
-// use grep::cli;
 use grep_printer::{ColorSpecs, StandardBuilder};
 use grep_regex::RegexMatcher;
 use grep_searcher::{BinaryDetection, SearcherBuilder};
@@ -10,7 +9,7 @@ use walkdir::WalkDir;
 use crate::consts::{HOME, PASSWORD_STORE_DIR};
 use crate::util;
 
-// Takes ~40 seconds to search my entire ~400 file store
+// Takes ~40 seconds to search the entirety of my ~400 file store
 pub fn grep(search: String) -> Fallible<()> {
     let mut searcher = SearcherBuilder::new()
         .binary_detection(BinaryDetection::quit(b'\x00'))
@@ -25,11 +24,11 @@ pub fn grep(search: String) -> Fallible<()> {
         ]))
         .heading(true)
         // Shorter and more concise way to do this is to use grep_cli, but we
-        // only use it for 2 things: grep_cli::stdout() and
-        // grep_cli::is_tty_stdout(). Both can be implemented here fairly
+        // only use it for 2 things, and it pulls in 3 extra dependencies. Both
+        // cli::stdout() and cli::is_tty_stdout() can be implemented here fairly
         // easily. `atty` is already a dependency of `clap`, so we get that for
-        // free. We use `termcolor` because I want colors for matches, so we
-        // get `StandardStream` and `BufferedStandardStream` for free.
+        // free. We use `termcolor` because I want colors for matches, so we get
+        // `StandardStream` and `BufferedStandardStream` for free.
         .build({
             let color = if atty::is(atty::Stream::Stdout) {
                 ColorChoice::Auto
@@ -54,7 +53,7 @@ pub fn grep(search: String) -> Fallible<()> {
         let path = entry
             .path()
             .to_str()
-            .ok_or_else(|| err_msg("Path did not contain a value"))?;
+            .ok_or_else(|| err_msg("Entry did not contain a valid path"))?;
         if !path.ends_with(".gpg") {
             continue;
         }
@@ -64,12 +63,8 @@ pub fn grep(search: String) -> Fallible<()> {
             .ok_or_else(|| err_msg("Path did not contain a folder"))?
             + 1;
         let pre = path[PASSWORD_STORE_DIR.len()..separator].replace(&*HOME, "~");
-        // if `pre` would be empty when we cut off PASSWORD_STORE_DIR and up to
-        // the separator... well, that shouldn't happen
-        assert_ne!(pre, "");
-
         // We guarantee all paths end in .gpg by this point, so we can cut it
-        // off without worry
+        // off without a problem (famous last words)
         let file = &path[separator..path.len() - 4];
         let contents = util::decrypt_file_into_bytes(path)?;
         let formatted_path = format!("{}{bold}{}", pre, file, bold = style::Bold);
@@ -84,6 +79,7 @@ pub fn grep(search: String) -> Fallible<()> {
     Ok(())
 }
 
+// TODO: properly attribute
 /// ref: https://docs.rs/grep-cli/0.1.3/src/grep_cli/wtr.rs.html
 enum StandardStreamKind {
     LineBuffered(termcolor::StandardStream),

@@ -1,48 +1,39 @@
-use std::fs;
-use std::path::Path;
-
 use failure::Fallible;
-use walkdir::{DirEntry, WalkDir};
 
-use crate::tree::Tree;
+use crate::consts::PASSWORD_STORE_DIR;
+// use crate::ui::{self, UiResult};
+use crate::util;
 
 pub fn find(names: Vec<String>) -> Fallible<()> {
-    // TODO: `tree` to any matching files (folder name, file name, etc)
-    // currently, tree only works for exact paths
+    // TODO: make a tree function that trees to a specific file/folder and  use that here
+    let matches = util::find_target_multi(names)?;
 
-    // use walkdir to find any file/dir that matches, and push it onto a vec of (Path, IsDir(bool))
-    // then iter over that vec
-    //
-    // or walkdir and filter(_map) it with .contains(names), then check if it's
-    // a dir, tree it
+    // FIXME: For now, just following `gopass`s lead: straightup print the matches to stdout.
+    // Printing trees is a pain in the ass. Filtering them is even worse.
+    // ref: https://github.com/gopasspw/gopass/blob/82c67a8a465d4e7d1cbf497c7fba26e6429944e0/pkg/action/find.go
+    // TODO: fuzzy search feature -- get 5 closest matches
+    for m in matches {
+        if m.ends_with(".gpg") {
+            println!("{}", &m[PASSWORD_STORE_DIR.len()..m.len() - 4]);
+        }
+        // } else {
+        //     m.len()
+        // };
+    }
 
-    let dir = "/tmp/passrstest";
-    // for (idx, entry) in WalkDir::new(dir)
-    //     .into_iter()
-    //     .filter_entry(|e| !is_hidden(e))
-    //     .enumerate()
-    // {
-    //     let entry = entry?;
-    //     dbg!((idx, &entry));
-    //     let path = entry.path().to_str().unwrap();
-
-    //     for name in &names {
-    //         if path.contains(name) {
-    //             //
+    // let file = ui::display_matches_for_targets(matches)?;
+    // match file {
+    //     UiResult::Success(file) => {
+    //         let password = util::decrypt_file_into_vec(file)?;
+    //         for line in password {
+    //             println!("{}", line);
     //         }
     //     }
+    //     UiResult::CopiedToClipboard(file) => {
+    //         println!("{}", &file[..file.len() - 4]);
+    //     }
+    //     _ => {}
     // }
 
-    // tree::draw_tree(dir, "")?;
-    // println!("{}", tree(dir)?);
-
     Ok(())
-}
-
-fn is_hidden(entry: &DirEntry) -> bool {
-    entry
-        .file_name()
-        .to_str()
-        .map(|s| s.starts_with('.'))
-        .unwrap_or(false)
 }

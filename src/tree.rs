@@ -2,16 +2,16 @@ use std::fmt::{self, Display};
 use std::fs;
 use std::path::PathBuf;
 
-use failure::{err_msg, Fallible};
+use failure::Fallible;
+use termion::{color, style};
 
 const EDGE: &str = "├── ";
 const LINE: &str = "│   ";
 const CORNER: &str = "└── ";
 const BLANK: &str = "    ";
 
-// TODO: own tree using DFS
-// maybe `petgraph` can help, at least to visualize
-// TODO: https://docs.rs/ptree/0.2.1/ptree/ might be interesting
+// TODO: make the tree from the path's components -- HashMap? anything will need indirection
+// ignore::WalkBuilder might help with the "only include matches" scenario
 
 pub fn tree<P: Into<PathBuf>>(path: P) -> Fallible<Tree> {
     let path = path.into().canonicalize()?;
@@ -35,27 +35,6 @@ pub fn tree<P: Into<PathBuf>>(path: P) -> Fallible<Tree> {
         },
     );
     Ok(result)
-}
-
-// TODO: only show matching elements
-pub fn find(search: &str, v: Tree) -> Fallible<Vec<Tree>> {
-    let mut list = Vec::new();
-    list.push(v.clone());
-
-    for element in v.1 {
-        let elt = element.0.to_str().unwrap_or("");
-        let sep = elt.rfind('/').unwrap_or(0);
-        let elt = &elt[sep..];
-        if elt.contains(search) {
-            list.push(element);
-        // find(search, element)?;
-        } else {
-            // find(search, element)?;
-            continue;
-        }
-    }
-
-    Ok(list)
 }
 
 #[derive(Debug, Clone)]
@@ -85,31 +64,25 @@ impl Tree {
                         blue = color::Fg(color::Blue),
                         reset = style::Reset
                     )?;
+                } else if leaf_name.ends_with(".gpg") {
+                    writeln!(f, "{}{}", CORNER, &leaf_name[..leaf_name.len() - 4])?;
                 } else {
-                    if leaf_name.ends_with(".gpg") {
-                        writeln!(f, "{}{}", CORNER, &leaf_name[..leaf_name.len() - 4])?;
-                    } else {
-                        writeln!(f, "{}{}", CORNER, leaf_name)?;
-                    }
+                    writeln!(f, "{}{}", CORNER, leaf_name)?;
                 }
+            } else if leaf.0.is_dir() {
+                writeln!(
+                    f,
+                    "{}{blue}{bold}{}{reset}",
+                    EDGE,
+                    leaf_name,
+                    bold = style::Bold,
+                    blue = color::Fg(color::Blue),
+                    reset = style::Reset
+                )?;
+            } else if leaf_name.ends_with(".gpg") {
+                writeln!(f, "{}{}", EDGE, &leaf_name[..leaf_name.len() - 4])?;
             } else {
-                if leaf.0.is_dir() {
-                    writeln!(
-                        f,
-                        "{}{blue}{bold}{}{reset}",
-                        EDGE,
-                        leaf_name,
-                        bold = style::Bold,
-                        blue = color::Fg(color::Blue),
-                        reset = style::Reset
-                    )?;
-                } else {
-                    if leaf_name.ends_with(".gpg") {
-                        writeln!(f, "{}{}", EDGE, &leaf_name[..leaf_name.len() - 4])?;
-                    } else {
-                        writeln!(f, "{}{}", EDGE, leaf_name)?;
-                    }
-                }
+                writeln!(f, "{}{}", EDGE, leaf_name)?;
             }
 
             if !leaf.1.is_empty() {
@@ -120,9 +93,6 @@ impl Tree {
         write!(f, "")
     }
 }
-
-use termion::color;
-use termion::style;
 
 impl Display for Tree {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -143,58 +113,4 @@ impl Display for Tree {
     }
 }
 
-// TODO: make this only tree the specified dir. no recursion
-/// https://github.com/kddeisz/tree
-pub fn _draw_tree(dir: &str, prefix: &str) -> Fallible<()> {
-    let dir = if fs::metadata(dir)?.is_file() {
-        let sep = dir.rfind('/').unwrap_or(0);
-        &dir[..sep]
-    } else {
-        dir
-    };
-
-    let mut paths: Vec<_> = fs::read_dir(dir)?
-        .map(|entry| entry.unwrap().path())
-        .collect();
-    let mut index = paths.len();
-
-    paths.sort_by(|a, b| a.cmp(b));
-
-    for path in paths {
-        let name = path
-            .file_name()
-            .ok_or_else(|| err_msg("Path did not contain a value"))?
-            .to_str()
-            .ok_or_else(|| err_msg("Path did not contain a value"))?;
-        index -= 1;
-
-        if name.starts_with('.') {
-            continue;
-        }
-
-        let name = if name.ends_with(".gpg") {
-            &name[..name.len() - 4]
-        } else {
-            name
-        };
-
-        if index == 0 {
-            println!("{}{}{}", prefix, CORNER, name);
-        // if path.is_dir() {
-        //     // TODO: blue and bold dir name
-        //     draw_tree(
-        //         &format!("{}/{}", dir, name),
-        //         &format!("{}{}", prefix, BLANK),
-        //     )?;
-        // }
-        } else {
-            println!("{}{}{}", prefix, EDGE, name);
-            // if path.is_dir() {
-            //     // TODO: blue and bold dir name
-            //     draw_tree(&format!("{}/{}", dir, name), &format!("{}{}", prefix, LINE))?;
-            // }
-        }
-    }
-
-    Ok(())
-}
+// https://github.com/kddeisz/tree

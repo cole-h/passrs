@@ -1,6 +1,8 @@
 use failure::Fallible;
 
-pub fn append(echo: bool, pass_name: String, secret: Option<String>) -> Fallible<String> {
+use crate::util;
+
+pub fn append(echo: bool, pass_name: String, secret: Option<String>) -> Fallible<()> {
     // TODO: if pass_name is a folder, write to pass_name/otp
     if echo {
         //
@@ -8,6 +10,6 @@ pub fn append(echo: bool, pass_name: String, secret: Option<String>) -> Fallible
     // TODO: secret
     let _ = secret;
 
-    let message = format!("Append OTP secret for {}", pass_name);
-    Ok(message)
+    util::commit(format!("Append OTP secret for {}", pass_name))?;
+    Ok(())
 }

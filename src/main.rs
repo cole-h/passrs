@@ -1,5 +1,13 @@
 // FIXME: replace all print* calls with actual logging
-#![forbid(unsafe_code)]
+// FIXME: some funcs take Path, some take &str, some take String, and some take
+// PathBuf... wtf bro
+// FIXME: deal with all unwraps, unless I can guarantee that it won't panic
+// FIXME: ensure all/most code is DRY -- Don't Repeat Yourself
+// FIXME: document EVERYTHING -- all functions, structs, etc
+//   https://doc.rust-lang.org/book/ch14-02-publishing-to-crates-io.html#making-useful-documentation-comments
+//   https://doc.rust-lang.org/rustdoc/index.html
+//   https://doc.rust-lang.org/stable/reference/comments.html#doc-comments
+//   https://doc.rust-lang.org/rust-by-example/meta/doc.html
 
 mod cli;
 mod clipboard;
@@ -11,37 +19,26 @@ mod tree;
 mod ui;
 mod util;
 
-fn main() -> Result<(), failure::Error> {
-    // FIXME: use to gracefuly handle errors
-    // match cli::opt() {
-    //     Ok(_) => {}
-    //     Err(e) => {
-    //         eprintln!("{:?}", e);
-    //         std::process::exit(1);
-    //     }
-    // }
-    // cli::opt()?;
-
-    let tree = tree::tree("/tmp/passrstest")?;
-
-    dbg!(&tree);
-    let trees = tree::find("test", tree)?;
-    dbg!(&trees[0]);
-    for (idx, tree) in trees.iter().enumerate() {
-        println!("{}: {}", idx, tree);
+fn main() -> failure::Fallible<()> {
+    match cli::opt() {
+        Ok(_) => {}
+        Err(e) => {
+            // Gracefully handle errors so backtraces only happen on legitimate
+            // panics.
+            eprintln!("{}", e);
+            // eprintln!("{:?}", e); // this displays the backtrace
+            std::process::exit(1);
+        }
     }
-
-    // println!("{}", tree);
-
-    // let matches = util::search_entries("reddit")?;
-    // match ui::display_matches(&matches) {
-    //     Ok(_) => {}
-    //     Err(e) => {
-    //         eprintln!("{}", e);
-    //         std::process::exit(1);
-    //     }
-    // }
-    // util::encrypt_bytes_into_file("test.gpg", &[b'l', b'm', b'a', b'o'])?;
+    // cli::opt()?;
 
     Ok(())
 }
+
+// TODO: every subcommand should use the following scaffolding before doing
+// anything else:
+// 1. ensure directories are created
+// 2. canonicalize paths
+// 3. check for sneaky paths -- what does this entail with Rust?
+//
+// 99. commit INSIDE THE SUBCMD

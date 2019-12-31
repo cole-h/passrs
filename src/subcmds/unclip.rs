@@ -26,7 +26,6 @@ pub fn unclip(timeout: u64, force: bool) -> Fallible<()> {
 
     if password_hash != *PASSRS_UNCLIP_HASH && !force {
         Command::new("wl-copy").arg("--clear").spawn()?;
-
         return Err(PassrsError::HashMismatch(password_hash, PASSRS_UNCLIP_HASH.to_owned()).into());
     }
 
