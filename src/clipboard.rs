@@ -5,7 +5,7 @@ use std::process::{Command, Stdio};
 use failure::{err_msg, Fallible};
 
 use crate::consts::PASSWORD_STORE_X_SELECTION;
-use crate::error::PassrsError;
+use crate::PassrsError;
 
 pub fn clip<S>(contents: S) -> Fallible<()>
 where

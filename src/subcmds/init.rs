@@ -9,8 +9,8 @@ use git2::Repository;
 use gpgme::{Context, Data, Protocol, SignMode};
 
 use crate::consts::{PASSWORD_STORE_DIR, PASSWORD_STORE_SIGNING_KEY};
-use crate::error::PassrsError;
 use crate::util;
+use crate::PassrsError;
 
 // TODO: The init command will keep signatures of .gpg-id files up to date.
 // TODO: key can be a vec of keys

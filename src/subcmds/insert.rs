@@ -3,8 +3,8 @@ use termion::input::TermRead;
 
 use failure::Fallible;
 
-use crate::error::PassrsError;
 use crate::util;
+use crate::PassrsError;
 
 pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fallible<()> {
     let path = util::canonicalize_path(&pass_name)?;

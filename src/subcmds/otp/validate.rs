@@ -2,8 +2,8 @@ use failure::{err_msg, Fallible};
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use crate::error::PassrsError;
 use crate::otp::HashAlgorithm;
+use crate::PassrsError;
 
 const SCHEME: &str = "otpauth://";
 const OTP_TYPE: &str = "(?P<type>totp|hotp)/";

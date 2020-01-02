@@ -14,9 +14,9 @@ use tui::Terminal;
 
 use crate::clipboard;
 use crate::consts::PASSWORD_STORE_DIR;
-use crate::error::PassrsError;
 use crate::event::{Event, Events};
 use crate::util;
+use crate::PassrsError;
 
 pub enum UiResult {
     Success(String),

@@ -12,8 +12,8 @@ use crate::consts::{
     PASSWORD_STORE_CHARACTER_SET, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS,
     PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_GENERATED_LENGTH,
 };
-use crate::error::PassrsError;
 use crate::util;
+use crate::PassrsError;
 
 pub fn generate(
     no_symbols: bool,

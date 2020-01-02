@@ -1,8 +1,8 @@
 use failure::Fallible;
 
 use crate::consts::PASSWORD_STORE_DIR;
-use crate::error::PassrsError;
 use crate::util;
+use crate::PassrsError;
 
 pub fn find(name: String) -> Fallible<()> {
     let matches = util::find_target_single(&name)?;

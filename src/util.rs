@@ -11,7 +11,7 @@ use rand::Rng;
 use walkdir::WalkDir;
 
 use crate::consts::{HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_SIGNING_KEY};
-use crate::error::PassrsError;
+use crate::PassrsError;
 
 // TODO: check paths in every function that reads or writes to .password-store
 // TODO: move all git-related fns to a git.rs
@@ -167,28 +167,28 @@ where
 }
 
 // TODO: fuzzy search feature -- 5 closest matches
-pub fn find_target_multi<V>(targets: V) -> Fallible<Vec<String>>
-where
-    V: AsRef<[String]>,
-{
-    let targets = targets.as_ref();
-    let mut matches = Vec::new();
+// pub fn find_target_multi<V>(targets: V) -> Fallible<Vec<String>>
+// where
+//     V: AsRef<[String]>,
+// {
+//     let targets = targets.as_ref();
+//     let mut matches = Vec::new();
 
-    for target in targets {
-        for entry in WalkDir::new(&*PASSWORD_STORE_DIR) {
-            let entry = entry?.into_path().to_str().unwrap().to_owned();
+//     for target in targets {
+//         for entry in WalkDir::new(&*PASSWORD_STORE_DIR) {
+//             let entry = entry?.into_path().to_str().unwrap().to_owned();
 
-            if entry[PASSWORD_STORE_DIR.len()..].contains(target) {
-                matches.push(entry);
-            }
-        }
-    }
-    if matches.is_empty() {
-        Err(PassrsError::NoMatchesFoundMultiple(targets.to_vec()).into())
-    } else {
-        Ok(matches)
-    }
-}
+//             if entry[PASSWORD_STORE_DIR.len()..].contains(target) {
+//                 matches.push(entry);
+//             }
+//         }
+//     }
+//     if matches.is_empty() {
+//         Err(PassrsError::NoMatchesFoundMultiple(targets.to_vec()).into())
+//     } else {
+//         Ok(matches)
+//     }
+// }
 
 /// Decrypts the file into a `Vec` of `String`s. This will return an `Err` if
 /// the plaintext is not validly UTF8 encoded.

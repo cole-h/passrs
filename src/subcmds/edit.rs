@@ -10,8 +10,8 @@ use ring::digest;
 use zeroize::Zeroize;
 
 use crate::consts::{EDITOR, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS};
-use crate::error::PassrsError;
 use crate::util;
+use crate::PassrsError;
 
 pub fn edit(pass_name: String) -> Fallible<()> {
     // 1. decrypt file to /dev/shm/{exe}.{20 rand alnum chars}/{5 rand

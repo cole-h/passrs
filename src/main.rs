@@ -15,7 +15,6 @@ mod clipboard;
 mod consts;
 mod error;
 mod event;
-mod fuzzy;
 #[cfg(feature = "otp")]
 mod otp;
 mod subcmds;
@@ -44,8 +43,8 @@ pub(crate) enum PassrsError {
     FailedToOpenGitRepo,
     #[fail(display = "Error: No matches found for search '{}'", _0)]
     NoMatchesFound(String),
-    #[fail(display = "Error: No matches found for search '{:?}'", _0)]
-    NoMatchesFoundMultiple(Vec<String>),
+    // #[fail(display = "Error: No matches found for search '{:?}'", _0)]
+    // NoMatchesFoundMultiple(Vec<String>),
     #[fail(display = "Error: The entered passwords do not match.")]
     PasswordsDontMatch,
     #[fail(display = "Error: Hashes don't match: '{}' vs '{}'", _0, _1)]
@@ -81,7 +80,8 @@ pub(crate) enum PassrsError {
     PasteFailed,
 }
 
-fn main() -> failure::Fallible<()> {
+fn main() /* -> failure::Fallible<()> */
+{
     //
 
     if let Err(err) = cli::opt() {
@@ -92,7 +92,7 @@ fn main() -> failure::Fallible<()> {
 
     // cli::opt()?;
 
-    Ok(())
+    // Ok(())
 }
 
 // TODO: every subcommand should use the following scaffolding before doing

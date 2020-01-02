@@ -4,8 +4,8 @@ use termion::input::TermRead;
 
 use failure::Fallible;
 
-use crate::error::PassrsError;
 use crate::util;
+use crate::PassrsError;
 
 // TODO: `pass rm` also removes the pathspec from the repo
 pub fn rm(recursive: bool, force: bool, pass_name: String) -> Fallible<()> {

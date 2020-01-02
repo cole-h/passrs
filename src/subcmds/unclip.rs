@@ -6,7 +6,7 @@ use ring::digest;
 
 use crate::clipboard;
 use crate::consts::PASSRS_UNCLIP_HASH;
-use crate::error::PassrsError;
+use crate::PassrsError;
 
 pub fn unclip(timeout: u64, force: bool) -> Fallible<()> {
     if *PASSRS_UNCLIP_HASH == "" {

@@ -4,8 +4,8 @@ use termion::input::TermRead;
 
 use failure::Fallible;
 
-use crate::error::PassrsError;
 use crate::util;
+use crate::PassrsError;
 
 pub fn cp(force: bool, source: String, dest: String) -> Fallible<()> {
     let source_path = util::canonicalize_path(&source)?;
