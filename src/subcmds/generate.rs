@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use std::process::Command;
 use termion::input::TermRead;
 
+use data_encoding::HEXLOWER;
 use failure::Fallible;
 use ring::digest;
 use termion::{color, style};
@@ -23,14 +24,15 @@ pub fn generate(
     pass_length: Option<usize>,
 ) -> Fallible<()> {
     let path = util::canonicalize_path(&pass_name)?;
-    let path = format!("{}.gpg", path);
+
+    util::create_descending_dirs(&path)?;
 
     let stdin = std::io::stdin();
     let mut stdin = stdin.lock();
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();
 
-    if util::path_exists(&path).is_err() && !force {
+    if !force && util::path_exists(&path)? {
         write!(
             stdout,
             "An entry exists for {}. Overwrite it? [y/N] ",
@@ -38,7 +40,7 @@ pub fn generate(
         )?;
         io::stdout().flush()?;
 
-        match stdin.read_passwd(&mut stdout)? {
+        match stdin.read_line()? {
             Some(reply)
                 if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
             {
@@ -77,7 +79,7 @@ pub fn generate(
     );
 
     if clip {
-        let hash = hex::encode(digest::digest(&digest::SHA256, &password_bytes));
+        let hash = HEXLOWER.encode(digest::digest(&digest::SHA256, &password_bytes).as_ref());
         let args = vec![
             "unclip",
             if force { "--force" } else { "" },

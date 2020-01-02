@@ -1,9 +1,9 @@
-use boringauth::oath::HashFunction;
 use failure::{err_msg, Fallible};
 use lazy_static::lazy_static;
 use regex::Regex;
 
 use crate::error::PassrsError;
+use crate::otp::HashAlgorithm;
 
 const SCHEME: &str = "otpauth://";
 const OTP_TYPE: &str = "(?P<type>totp|hotp)/";
@@ -52,7 +52,7 @@ where
     Ok(secret)
 }
 
-pub fn get_period<S>(uri: S) -> Fallible<u32>
+pub fn get_period<S>(uri: S) -> Fallible<u64>
 where
     S: Into<String>,
 {
@@ -63,7 +63,7 @@ where
         .captures(&uri)
         .ok_or_else(|| err_msg("Failed to get regex captures"))?;
     let period = match captures.name("period") {
-        Some(num) => num.as_str().parse::<u32>()?,
+        Some(num) => num.as_str().parse::<u64>()?,
         None => 30,
     };
 
@@ -89,7 +89,7 @@ where
 }
 
 #[allow(deprecated)]
-pub fn get_algorithm<S>(uri: S) -> Fallible<HashFunction>
+pub fn get_algorithm<S>(uri: S) -> Fallible<HashAlgorithm>
 where
     S: Into<String>,
 {
@@ -101,12 +101,12 @@ where
         .ok_or_else(|| err_msg("Failed to get regex captures"))?;
     let algo = match captures.name("algorithm") {
         Some(algo) => match algo.as_str().to_lowercase().as_ref() {
-            "sha1" => HashFunction::Sha1,
-            "sha256" => HashFunction::Sha256,
-            "sha512" => HashFunction::Sha512,
-            algo => return Err(PassrsError::InvalidHashFunction(algo.to_owned()).into()),
+            "sha1" => HashAlgorithm::Sha1,
+            "sha256" => HashAlgorithm::Sha256,
+            "sha512" => HashAlgorithm::Sha512,
+            algo => return Err(PassrsError::InvalidHashAlgorithm(algo.to_owned()).into()),
         },
-        None => HashFunction::Sha1,
+        None => HashAlgorithm::Sha1,
     };
 
     Ok(algo)

@@ -1,5 +1,6 @@
 use std::process::Command;
 
+use data_encoding::HEXLOWER;
 use failure::{err_msg, Fallible};
 use ring::digest;
 use termion::{color, style};
@@ -23,7 +24,8 @@ pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Fallible<()> {
                         .ok_or_else(|| err_msg(format!("File at line {} was empty", line)))?,
                     None => password.first().ok_or_else(|| err_msg("Vec was empty"))?,
                 };
-                let hash = hex::encode(digest::digest(&digest::SHA256, contents.as_bytes()));
+                let hash =
+                    HEXLOWER.encode(digest::digest(&digest::SHA256, contents.as_bytes()).as_ref());
 
                 clipboard::clip(contents)?;
 

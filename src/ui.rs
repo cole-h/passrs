@@ -47,7 +47,7 @@ impl Ui {
                     entry.truncate(entry.len() - 4);
                 }
                 // Don't show PASSWORD_STORE_DIR in entry name
-                entry[PASSWORD_STORE_DIR.len()..].to_string()
+                entry[PASSWORD_STORE_DIR.len()..].to_owned()
             })
             .collect::<Vec<_>>();
 
@@ -183,7 +183,7 @@ fn display_matches(matches: Vec<String>) -> Fallible<UiResult> {
                     // notes, etc., with password as the first line)
                     entry = app.selected;
                     if let Some(entry) = app.selected {
-                        let entry = matches[entry].to_string();
+                        let entry = matches[entry].to_owned();
                         let contents = util::decrypt_file_into_strings(&entry)?;
                         clipboard::clip(&contents[0])?;
 
@@ -208,7 +208,7 @@ fn display_matches(matches: Vec<String>) -> Fallible<UiResult> {
                 Key::Char('e') => {
                     entry = app.selected;
                     if let Some(entry) = app.selected {
-                        let entry = matches[entry].to_string();
+                        let entry = matches[entry].to_owned();
                         return Ok(UiResult::SpawnEditor(entry));
                     }
                 }
@@ -248,7 +248,7 @@ fn display_matches(matches: Vec<String>) -> Fallible<UiResult> {
     // If user didn't select an entry with enter or right arrow, it was a cancellation
     if let Some(entry) = entry {
         // println!("{}", &matches[entry]);
-        Ok(UiResult::Success(matches[entry].to_string()))
+        Ok(UiResult::Success(matches[entry].to_owned()))
     } else {
         // println!(
         //     "{red}Error: user aborted{reset}",
@@ -263,7 +263,7 @@ pub fn display_matches_for_target(target: &str) -> Fallible<UiResult> {
     let matches = util::find_target_single(target)?;
 
     if matches.len() == 1 {
-        return Ok(UiResult::Success(matches[0].to_string()));
+        return Ok(UiResult::Success(matches[0].to_owned()));
     }
 
     // TODO: color or no color?
@@ -281,7 +281,7 @@ pub fn display_matches_for_target(target: &str) -> Fallible<UiResult> {
 
 // pub fn display_matches_for_targets(matches: Vec<String>) -> Fallible<UiResult> {
 //     if matches.len() == 1 {
-//         return Ok(UiResult::Success(matches[0].to_string()));
+//         return Ok(UiResult::Success(matches[0].to_owned()));
 //     }
 
 //     Ok(display_matches(matches)?)

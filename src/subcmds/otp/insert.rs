@@ -8,7 +8,7 @@ use crate::util;
 
 pub fn insert(force: bool, echo: bool, pass_name: String, secret: Option<String>) -> Fallible<()> {
     let path = util::canonicalize_path(&pass_name)?;
-    let path = format!("{}.gpg", path);
+    // let path = format!("{}.gpg", path);
 
     // TODO: recursively create dir
     // match fs::create_dir_all(&path) {} -- if "Exists", go deeper
@@ -17,7 +17,7 @@ pub fn insert(force: bool, echo: bool, pass_name: String, secret: Option<String>
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();
 
-    if util::path_exists(&path).is_err() && !force {
+    if !force && util::path_exists(&path)? {
         write!(
             stdout,
             "An entry exists for {}. Overwrite it? [y/N] ",
@@ -48,7 +48,7 @@ pub fn insert(force: bool, echo: bool, pass_name: String, secret: Option<String>
     if echo {
         // TODO
     }
-    if !force && util::path_exists(&pass_name).is_err() {
+    if !force && util::path_exists(&pass_name)? {
         return Err(PassrsError::PathExists(pass_name).into());
     }
 

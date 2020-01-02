@@ -1,8 +1,10 @@
 use std::fs;
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
+use data_encoding::HEXLOWER;
 use failure::Fallible;
 use ring::digest;
 use zeroize::Zeroize;
@@ -12,19 +14,17 @@ use crate::error::PassrsError;
 use crate::util;
 
 pub fn edit(pass_name: String) -> Fallible<()> {
-    // TODO: no UI search -- absolute path (from base store) only
-    let file = &pass_name;
     // 1. decrypt file to /dev/shm/{exe}.{20 rand alnum chars}/{5 rand
     // alnum}-path-components-except-for-root.txt
     let path = temp_file(&pass_name)?;
-    // TODO: don't append .gpg if it already has it
-    let file = util::canonicalize_path(&format!("{}.gpg", &file))?;
+    let file = util::canonicalize_path(&pass_name)?;
 
     util::create_descending_dirs(&path)?;
 
     let mut contents = util::decrypt_file_into_bytes(&file)?;
-    let hash = hex::encode(digest::digest(&digest::SHA256, &contents));
+    let hash = HEXLOWER.encode(digest::digest(&digest::SHA256, &contents).as_ref());
     let mut tempfile = fs::OpenOptions::new()
+        .mode(0o600)
         .read(true)
         .write(true)
         .create_new(true)
@@ -48,7 +48,7 @@ pub fn edit(pass_name: String) -> Fallible<()> {
     tempfile.seek(SeekFrom::Start(0))?;
     tempfile.read_to_end(&mut new_contents)?;
 
-    let new_hash = hex::encode(digest::digest(&digest::SHA256, &new_contents));
+    let new_hash = HEXLOWER.encode(digest::digest(&digest::SHA256, &new_contents).as_ref());
 
     // 5a. if same, zero_memory both and notify nothing changed
     // 5b. if not same, truncate old file and write new bytes to file
@@ -78,12 +78,17 @@ pub fn edit(pass_name: String) -> Fallible<()> {
     Ok(())
 }
 
-fn temp_file(path: &String) -> Fallible<String> {
+fn temp_file<S>(path: S) -> Fallible<String>
+where
+    S: AsRef<str>,
+{
     assert!(PathBuf::from("/dev/shm/").metadata().is_ok());
 
+    let path = path.as_ref();
+
     let path = path.replace("/", "-");
-    let folder = util::generate_chars_from_set(&PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, 20)?;
-    let file = util::generate_chars_from_set(&PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, 5)?;
+    let folder = util::generate_chars_from_set(&*PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, 20)?;
+    let file = util::generate_chars_from_set(&*PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, 5)?;
 
     let path = format!(
         "/dev/shm/{exe}.{folder}/{file}-{path}.txt",

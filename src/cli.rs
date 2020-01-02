@@ -29,10 +29,10 @@ enum PassSub {
     },
     /// List secrets.
     Ls { subfolder: Option<String> },
-    /// List secrets that match secret-names.
+    /// List secrets that match secret-name.
     Find {
         #[structopt(required = true)]
-        secret_names: Vec<String>,
+        secret_name: String,
     },
     /// Show existing secret.
     Show {
@@ -231,9 +231,9 @@ pub fn opt() -> Fallible<()> {
                     util::verify_store_exists()?;
                     ls::ls(subfolder)?;
                 }
-                PassSub::Find { secret_names } => {
+                PassSub::Find { secret_name } => {
                     util::verify_store_exists()?;
-                    find::find(secret_names)?;
+                    find::find(secret_name)?;
                 }
                 PassSub::Show { clip, secret_name } => {
                     util::verify_store_exists()?;

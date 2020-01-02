@@ -8,16 +8,15 @@ use crate::util;
 
 pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fallible<()> {
     let path = util::canonicalize_path(&pass_name)?;
-    let path = format!("{}.gpg", path);
 
-    // TODO: create dirs recursively
+    util::create_descending_dirs(&path)?;
 
     let stdin = std::io::stdin();
     let mut stdin = stdin.lock();
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();
 
-    if util::path_exists(&path).is_err() && !force {
+    if !force && util::path_exists(&path)? {
         write!(
             stdout,
             "An entry exists for {}. Overwrite it? [y/N] ",
@@ -25,7 +24,7 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fa
         )?;
         io::stdout().flush()?;
 
-        match stdin.read_passwd(&mut stdout)? {
+        match TermRead::read_line(&mut stdin)? {
             Some(reply)
                 if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
             {
@@ -39,7 +38,7 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fa
     }
 
     let password = if echo {
-        write!(stdout, "Enter password for {}: ", pass_name)?;
+        write!(stdout, "Enter secret for {}: ", pass_name)?;
         io::stdout().flush()?;
         let input = stdin.read_passwd(&mut stdout)?;
 
@@ -62,23 +61,25 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fa
 
         Some(input.join("\n"))
     } else {
-        write!(stdout, "Enter password for {}: ", pass_name)?;
+        write!(stdout, "Enter secret for {}: ", pass_name)?;
         io::stdout().flush()?;
         let input = {
             let input = stdin.read_passwd(&mut stdout)?;
             if input.is_none() {
                 return Err(PassrsError::UserAbort.into());
             }
+
             input.unwrap()
         };
 
-        write!(stdout, "Re-enter password for {}: ", pass_name)?;
+        write!(stdout, "Re-enter secret for {}: ", pass_name)?;
         io::stdout().flush()?;
         let check = {
             let input = stdin.read_passwd(&mut stdout)?;
             if input.is_none() {
                 return Err(PassrsError::UserAbort.into());
             }
+
             input.unwrap()
         };
 
@@ -94,6 +95,6 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fa
         util::encrypt_bytes_into_file(password.as_bytes(), path)?;
     }
 
-    util::commit(format!("Add given password for {} to store", pass_name))?;
+    util::commit(format!("Add given secret for {} to store", pass_name))?;
     Ok(())
 }

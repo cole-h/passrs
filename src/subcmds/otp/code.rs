@@ -1,16 +1,7 @@
-// FIXME: use `otpauth` -- from_base32; add customization a la boringauth::oath
-// (hash funcs, length, etc)
-// let auth = TOTP::from_base32(secret).unwrap();
-// let timestamp = SystemTime::now()
-//     .duration_since(UNIX_EPOCH)
-//     .unwrap()
-//     .as_secs();
-// let code = auth.generate(30, timestamp);
-
-use boringauth::oath::{HOTPBuilder, HashFunction, TOTPBuilder};
 use failure::{err_msg, Fallible};
 
 use crate::clipboard;
+use crate::otp::{HOTPBuilder, HashAlgorithm, TOTPBuilder};
 use crate::subcmds::otp::validate;
 use crate::ui::{self, UiResult};
 use crate::util;
@@ -35,29 +26,32 @@ pub fn code(clip: bool, pass_name: String) -> Fallible<()> {
         let code = generate_totp(base32_secret, period, algorithm, digits)?;
 
         if clip {
-            clipboard::clip(&format!("{:0digits$}", code, digits = digits))?;
+            clipboard::clip(&code)?;
         } else {
-            println!("{:0digits$}", code, digits = digits);
+            println!("{}", code);
         }
     }
 
     Ok(())
 }
 
-fn generate_totp<S>(secret: S, period: u32, algorithm: HashFunction, digits: usize) -> Fallible<u32>
+fn generate_totp<S>(
+    secret: S,
+    period: u64,
+    algorithm: HashAlgorithm,
+    digits: usize,
+) -> Fallible<String>
 where
     S: Into<String>,
 {
     let secret = secret.into();
-    #[allow(deprecated)]
     let auth = TOTPBuilder::new()
-        .base32_key(&secret)
+        .base32_secret(&secret)?
         .period(period)
-        .hash_function(algorithm)
-        .output_len(digits)
-        .finalize()
-        .unwrap();
-    let code = auth.generate().parse::<u32>()?;
+        .algorithm(algorithm)
+        .output_length(digits)
+        .build();
+    let code = auth.generate();
 
     Ok(code)
 }
@@ -67,21 +61,20 @@ where
 fn generate_hotp<S>(
     secret: S,
     counter: u64,
-    algorithm: HashFunction,
+    algorithm: HashAlgorithm,
     digits: usize,
-) -> Fallible<u32>
+) -> Fallible<String>
 where
     S: Into<String>,
 {
     let secret = secret.into();
     let auth = HOTPBuilder::new()
-        .base32_key(&secret)
+        .base32_secret(&secret)?
         .counter(counter)
-        .hash_function(algorithm)
-        .output_len(digits)
-        .finalize()
-        .unwrap();
-    let code = auth.generate().parse::<u32>()?;
+        .algorithm(algorithm)
+        .output_length(digits)
+        .build();
+    let code = auth.generate();
     // TODO: increment counter, I think?
 
     Ok(code)

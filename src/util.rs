@@ -2,7 +2,7 @@ use std::fs;
 use std::io::Read;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use failure::{err_msg, Fallible};
 use git2::Repository;
@@ -18,24 +18,59 @@ use crate::error::PassrsError;
 // TODO: all functions except init require that the password store exists
 // (git repo must be init'd, and .gpg-id must be present)
 
-// TODO: for all commands that write to the store, create all dirs (rfind('/')
-// and go from there)
+// TODO: for all commands that write to the store, create_descending_dirs
 // 1. canonicalize_path
 // 2. path_exists (which implicitly check_sneaky_paths)
 // 3. sep=rfind('/') and fs::create_all_dirs(path[..sep])
 
 // TODO: verify function doesn't munge the path
 /// Paths may be an absolute path to the entry, or relative to the store's root.
-pub fn canonicalize_path(path: &str) -> Fallible<String> {
-    // TODO: if .gpg.gpg, pop last .gpg and actually return path with gpg IF
-    // FILE so we can stop format'ing everything
+pub fn canonicalize_path<S>(path: S) -> Fallible<PathBuf>
+where
+    S: AsRef<str>,
+{
+    let path = path.as_ref();
     let mut path = path.replace("~", &*HOME);
 
     if !path.contains(&*PASSWORD_STORE_DIR) {
         path = [&*PASSWORD_STORE_DIR.to_owned(), &path].concat();
     }
 
-    Ok(path)
+    path = match fs::metadata(&path) {
+        Ok(_) => path,
+        Err(_) => {
+            if !path.ends_with(".gpg") {
+                path + ".gpg"
+            } else {
+                path
+            }
+        }
+    };
+    dbg!(&path);
+
+    check_sneaky_paths(&path)?;
+    // TODO: callers should create_descending_dirs when appropriate
+    // create_descending_dirs(&path)?;
+
+    Ok(PathBuf::from(path))
+}
+
+pub fn exact_path<S>(path: S) -> Fallible<PathBuf>
+where
+    S: AsRef<str>,
+{
+    let path = path.as_ref();
+    let mut path = path.replace("~", &*HOME);
+
+    if !path.contains(&*PASSWORD_STORE_DIR) {
+        path = [&*PASSWORD_STORE_DIR.to_owned(), &path].concat();
+    }
+
+    check_sneaky_paths(&path)?;
+    // TODO: callers should create_descending_dirs when appropriate
+    // create_descending_dirs(&path)?;
+
+    Ok(PathBuf::from(path))
 }
 
 pub fn verify_store_exists() -> Fallible<()> {
@@ -53,30 +88,38 @@ pub fn verify_store_exists() -> Fallible<()> {
     Ok(())
 }
 
-/// Returns `()` if path does not exist (success), or an error if path does exist.
-pub fn path_exists<S>(path: S) -> Fallible<()>
+/// Returns `false` if path does not exist (success), `true` if it does exist.
+pub fn path_exists<P>(path: P) -> Fallible<bool>
 where
-    S: Into<String>,
+    P: AsRef<Path>,
 {
-    let path = path.into();
+    let path = path.as_ref();
     let meta = fs::metadata(&path);
 
     // check if path already exists
     if meta.is_ok() {
-        return Err(PassrsError::PathExists(path).into());
+        return Ok(true);
     }
 
-    check_sneaky_paths(&path)?;
+    check_sneaky_paths(path)?;
 
-    Ok(())
+    Ok(false)
 }
 
 // TODO: check for .. and shell expansion
-fn check_sneaky_paths(path: &str) -> Fallible<()> {
-    let _ = path;
+// TODO: only allowed to specify in PASSWORD_STORE_DIR
+fn check_sneaky_paths<P>(path: P) -> Fallible<()>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    let strpath = path.to_str().unwrap();
 
-    if false {
-        return Err(PassrsError::SneakyPath(path.to_owned()).into());
+    if strpath.contains("../") || strpath.contains("/..") {
+        return Err(PassrsError::SneakyPath(path.display().to_string()).into());
+    }
+    if !strpath.contains(&*PASSWORD_STORE_DIR) {
+        return Err(PassrsError::SneakyPath(path.display().to_string()).into());
     }
 
     Ok(())
@@ -90,6 +133,7 @@ where
     S: AsRef<str> + ToString,
 {
     let mut matches: Vec<String> = Vec::new();
+    let target = target.as_ref();
 
     for path in WalkDir::new(&*PASSWORD_STORE_DIR)
         .into_iter()
@@ -104,49 +148,45 @@ where
         let entry = path?;
         let is_file = entry.path().is_file();
         let filename = &entry.file_name().to_str().unwrap();
-        let path = entry
-            .clone()
-            .into_path()
-            .to_str()
-            .ok_or_else(|| failure::err_msg("Path couldn't be converted to string"))?
-            .to_string();
+        let path = entry.clone().into_path().to_str().unwrap().to_owned();
 
-        if filename == &target.to_string() {
-            return Ok(vec![path.to_string()]);
+        if filename == &target.to_owned() {
+            return Ok(vec![path]);
         }
 
-        if path[PASSWORD_STORE_DIR.len()..].contains(target.as_ref()) && is_file {
-            matches.push(path.to_string());
+        if path[PASSWORD_STORE_DIR.len()..].contains(target) && is_file {
+            matches.push(path.to_owned());
         }
     }
 
-    if !matches.is_empty() {
-        Ok(matches)
+    if matches.is_empty() {
+        Err(PassrsError::NoMatchesFound(target.to_owned()).into())
     } else {
-        Err(PassrsError::NoMatchesFound(target.to_string()).into())
+        Ok(matches)
     }
 }
 
-pub fn find_target_multi(targets: Vec<String>) -> Fallible<Vec<String>> {
+// TODO: fuzzy search feature -- 5 closest matches
+pub fn find_target_multi<V>(targets: V) -> Fallible<Vec<String>>
+where
+    V: AsRef<[String]>,
+{
+    let targets = targets.as_ref();
     let mut matches = Vec::new();
 
-    for target in &targets {
+    for target in targets {
         for entry in WalkDir::new(&*PASSWORD_STORE_DIR) {
-            let entry = entry?
-                .into_path()
-                .to_str()
-                .ok_or_else(|| failure::err_msg("Path couldn't be converted to string"))?
-                .to_string();
+            let entry = entry?.into_path().to_str().unwrap().to_owned();
 
             if entry[PASSWORD_STORE_DIR.len()..].contains(target) {
                 matches.push(entry);
             }
         }
     }
-    if !matches.is_empty() {
-        Ok(matches)
+    if matches.is_empty() {
+        Err(PassrsError::NoMatchesFoundMultiple(targets.to_vec()).into())
     } else {
-        Err(PassrsError::NoMatchesFoundMultiple(targets).into())
+        Ok(matches)
     }
 }
 
@@ -172,12 +212,15 @@ where
 /// Decrypts the given file into a `Vec` of bytes.
 pub fn decrypt_file_into_bytes<S>(file: S) -> Fallible<Vec<u8>>
 where
-    S: Into<String>,
+    S: AsRef<Path>,
 {
-    let file = file.into();
+    let file = file.as_ref();
+    let mut bytes = Vec::new();
+    let mut file = fs::File::open(file)?;
+    file.read_to_end(&mut bytes)?;
 
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
-    let mut cipher = Data::load(file)?;
+    let mut cipher = Data::from_bytes(bytes)?;
     let mut plain = Vec::new();
     ctx.decrypt(&mut cipher, &mut plain)?;
 
@@ -187,9 +230,10 @@ where
 /// Creates all directories to allow `file` to be created.
 pub fn create_descending_dirs<S>(file: S) -> Fallible<()>
 where
-    S: AsRef<str>,
+    S: AsRef<Path>,
 {
     let file = file.as_ref();
+    let file = file.display().to_string();
     let sep = file.rfind('/').unwrap_or(0);
     let dir = &file[..sep];
     fs::create_dir_all(dir)?;
@@ -204,9 +248,9 @@ where
 /// initialized).
 pub fn encrypt_bytes_into_file<S>(plain: &[u8], file: S) -> Fallible<()>
 where
-    S: Into<String>,
+    S: AsRef<Path>,
 {
-    let file = file.into();
+    let file = file.as_ref();
     create_descending_dirs(&file)?;
 
     dbg!(&file);
@@ -271,12 +315,16 @@ where
 /// dirty. Callers must verify that `PASSWORD_STORE_DIR` exists and is
 /// initialized (usually by verifying the `.gpg-id` file exists and a `git` repo
 /// has been initialized).
-pub fn commit(commit_message: String) -> Fallible<()> {
+pub fn commit<S>(commit_message: S) -> Fallible<()>
+where
+    S: AsRef<str>,
+{
     // TODO:
     // [master 5a5604a] Add generated password for test.
     //  1 file changed, 0 insertions(+), 0 deletions(-)
     //  create mode 100644 test.gpg
     let path = &*PASSWORD_STORE_DIR;
+    let commit_message = commit_message.as_ref();
 
     if let Ok(repo) = git_open(path) {
         if repo.statuses(None)?.is_empty() {
@@ -375,7 +423,11 @@ where
     Ok(())
 }
 
-pub fn generate_chars_from_set(set: &Vec<u8>, len: usize) -> Fallible<Vec<u8>> {
+pub fn generate_chars_from_set<V>(set: V, len: usize) -> Fallible<Vec<u8>>
+where
+    V: AsRef<[u8]>,
+{
+    let set = set.as_ref();
     let mut rng = rand::thread_rng();
 
     let mut password_bytes = Vec::with_capacity(len);
@@ -460,29 +512,29 @@ pub fn generate_chars_from_set(set: &Vec<u8>, len: usize) -> Fallible<Vec<u8>> {
 //     Ok(())
 // }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
 
-    #[test]
-    fn canonicalize_tester() {
-        let paths = [
-            "Internet/amazon.com/password.gpg",
-            "~/.password-store/Internet/amazon.com/password.gpg",
-            &format!(
-                "{}/.password-store/Internet/amazon.com/password.gpg",
-                std::env::var("HOME").unwrap()
-            ),
-        ];
+//     #[test]
+//     fn canonicalize_tester() {
+//         let paths = [
+//             "Internet/amazon.com/password.gpg",
+//             "~/.password-store/Internet/amazon.com/password.gpg",
+//             &format!(
+//                 "{}/.password-store/Internet/amazon.com/password.gpg",
+//                 std::env::var("HOME").unwrap()
+//             ),
+//         ];
 
-        for path in &paths {
-            assert_eq!(
-                canonicalize_path(path).unwrap(),
-                format!(
-                    "{}/.password-store/Internet/amazon.com/password.gpg",
-                    std::env::var("HOME").unwrap()
-                )
-            );
-        }
-    }
-}
+//         for path in &paths {
+//             assert_eq!(
+//                 canonicalize_path(path).unwrap().display().to_owned(),
+//                 format!(
+//                     "{}/.password-store/Internet/amazon.com/password.gpg",
+//                     std::env::var("HOME").unwrap()
+//                 )
+//             );
+//         }
+//     }
+// }

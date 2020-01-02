@@ -11,43 +11,42 @@ use crate::util;
 pub fn rm(recursive: bool, force: bool, pass_name: String) -> Fallible<()> {
     let path = util::canonicalize_path(&pass_name)?;
 
-    let is_file = match fs::metadata(&path) {
-        Ok(md) => md.is_file(),
-        Err(_) => false,
-    } || match fs::metadata(&format!("{}.gpg", path)) {
-        Ok(md) => md.is_file(),
-        Err(_) => false,
-    };
+    // let is_file = match fs::metadata(&path) {
+    //     Ok(md) => md.is_file(),
+    //     Err(_) => false,
+    // };
 
-    let path = if path.ends_with(".gpg") {
-        path
-    } else if !is_file {
-        format!("{}/", path)
-    } else {
-        format!("{}.gpg", path)
-    };
+    // let path = if path.ends_with(".gpg") {
+    //     path
+    // } else if !is_file {
+    //     format!("{}/", path)
+    // } else {
+    //     format!("{}.gpg", path)
+    // };
 
     let stdin = std::io::stdin();
     let mut stdin = stdin.lock();
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();
 
-    if util::path_exists(&path).is_err() && !force {
+    if !force && util::path_exists(&path)? {
         write!(
             stdout,
-            "An entry exists for {}. Overwrite it? [y/N] ",
+            "Are you sure you would like to delete {}? [y/N] ",
             pass_name
         )?;
         io::stdout().flush()?;
 
-        match stdin.read_passwd(&mut stdout)? {
+        match stdin.read_line()? {
             Some(reply)
                 if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
             {
-                std::fs::OpenOptions::new()
-                    .write(true)
-                    .truncate(true)
-                    .open(&path)?;
+                if path.is_file() {
+                    std::fs::OpenOptions::new()
+                        .write(true)
+                        .truncate(true)
+                        .open(&path)?;
+                }
             }
             _ => return Err(PassrsError::UserAbort.into()),
         }
@@ -59,10 +58,10 @@ pub fn rm(recursive: bool, force: bool, pass_name: String) -> Fallible<()> {
                 if recursive {
                     // let sep = path.rfind('/').unwrap_or(0);
                     // fs::remove_dir_all(&path[..sep])?;
-                    // fs::remove_dir_all(&path)?;
                     dbg!(("would remove", &path));
+                    fs::remove_dir_all(&path)?;
                 } else {
-                    return Err(PassrsError::PathIsDir(path).into());
+                    return Err(PassrsError::PathIsDir(path.display().to_string()).into());
                 }
             } else {
                 // fs::remove_file(path)?;
@@ -70,7 +69,7 @@ pub fn rm(recursive: bool, force: bool, pass_name: String) -> Fallible<()> {
             }
         }
         Err(_) => {
-            return Err(PassrsError::PathDoesntExist(path).into());
+            return Err(PassrsError::PathDoesntExist(path.display().to_string()).into());
         }
     }
 
