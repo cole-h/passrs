@@ -1,5 +1,5 @@
 use failure::{err_msg, Fallible};
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::otp::HashAlgorithm;
@@ -14,10 +14,12 @@ const ALGORITHM: &str = "(?:&algorithm=(?P<algorithm>[^&#]*))?";
 const DIGITS: &str = "(?:&digits=(?P<digits>[^&#]*))?";
 const PERIOD: &str = "(?:&period=(?P<period>[^&#]*))?";
 
-lazy_static! {
-    static ref URI_PATTERN: String =
-        [SCHEME, OTP_TYPE, LABEL, SECRET, ISSUER, ALGORITHM, DIGITS, PERIOD].concat();
-}
+static URI_PATTERN: Lazy<String> = Lazy::new(|| {
+    [
+        SCHEME, OTP_TYPE, LABEL, SECRET, ISSUER, ALGORITHM, DIGITS, PERIOD,
+    ]
+    .concat()
+});
 
 pub fn validate<S>(uri: S) -> Fallible<()>
 where

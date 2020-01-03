@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::{self, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use termion::input::TermRead;
 
 use failure::Fallible;
@@ -43,6 +44,7 @@ pub fn rm(recursive: bool, force: bool, pass_name: String) -> Fallible<()> {
             {
                 if path.is_file() {
                     std::fs::OpenOptions::new()
+                        .mode(0o600)
                         .write(true)
                         .truncate(true)
                         .open(&path)?;

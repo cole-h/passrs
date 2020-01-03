@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use std::process::Command;
 use termion::input::TermRead;
 
@@ -45,6 +46,7 @@ pub fn generate(
                 if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
             {
                 std::fs::OpenOptions::new()
+                    .mode(0o600)
                     .write(true)
                     .truncate(true)
                     .open(&path)?;

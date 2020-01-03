@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::{self, Write};
+use std::os::unix::fs::OpenOptionsExt;
 use termion::input::TermRead;
 
 use failure::Fallible;
@@ -39,6 +40,7 @@ pub fn cp(force: bool, source: String, dest: String) -> Fallible<()> {
                     if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
                 {
                     std::fs::OpenOptions::new()
+                        .mode(0o600)
                         .write(true)
                         .truncate(true)
                         .open(&dest_path)?;

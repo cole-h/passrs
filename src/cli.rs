@@ -10,7 +10,7 @@ use crate::util;
     settings = &[AppSettings::ArgsNegateSubcommands,
                  AppSettings::DeriveDisplayOrder,
                  AppSettings::VersionlessSubcommands],
-    version = crate::consts::VERSION.as_str())]
+    version = &*crate::consts::VERSION.as_str())]
 struct Pass {
     #[structopt(subcommand)]
     subcmd: Option<PassSub>,
@@ -25,7 +25,7 @@ enum PassSub {
         #[structopt(long, short = "p")]
         /// The specified gpg-id is assigned to the specified subfolder.
         path: Option<String>,
-        gpg_id: Option<String>,
+        gpg_id: Vec<String>,
     },
     /// List secrets.
     Ls { subfolder: Option<String> },

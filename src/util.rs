@@ -2,6 +2,7 @@ use std::fs;
 use std::io::Read;
 use std::io::Write;
 use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
 use failure::{err_msg, Fallible};
@@ -10,7 +11,9 @@ use gpgme::{Context, Data, Protocol, SignMode};
 use rand::Rng;
 use walkdir::WalkDir;
 
-use crate::consts::{HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_SIGNING_KEY};
+use crate::consts::{
+    GPG_ID_FILE, HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_SIGNING_KEY,
+};
 use crate::PassrsError;
 
 // TODO: check paths in every function that reads or writes to .password-store
@@ -30,10 +33,10 @@ where
     S: AsRef<str>,
 {
     let path = path.as_ref();
-    let mut path = path.replace("~", &*HOME);
+    let mut path = path.replace("~", &HOME);
 
     if !path.contains(&*PASSWORD_STORE_DIR) {
-        path = [&*PASSWORD_STORE_DIR.to_owned(), &path].concat();
+        path = [PASSWORD_STORE_DIR.to_owned(), path].concat();
     }
 
     path = match fs::metadata(&path) {
@@ -60,10 +63,10 @@ where
     S: AsRef<str>,
 {
     let path = path.as_ref();
-    let mut path = path.replace("~", &*HOME);
+    let mut path = path.replace("~", &HOME);
 
     if !path.contains(&*PASSWORD_STORE_DIR) {
-        path = [&*PASSWORD_STORE_DIR.to_owned(), &path].concat();
+        path = [PASSWORD_STORE_DIR.to_owned(), path].concat();
     }
 
     check_sneaky_paths(&path)?;
@@ -79,7 +82,7 @@ pub fn verify_store_exists() -> Fallible<()> {
         return Err(PassrsError::StoreDoesntExist.into());
     }
 
-    let gpg_id = [&*PASSWORD_STORE_DIR, ".gpg-id"].concat();
+    let gpg_id = &*GPG_ID_FILE;
     let meta = fs::metadata(gpg_id);
     if meta.is_err() {
         return Err(PassrsError::StoreDoesntExist.into());
@@ -254,13 +257,19 @@ where
     create_descending_dirs(&file)?;
 
     dbg!(&file);
-    let mut file = match fs::OpenOptions::new().write(true).open(&file) {
-        Ok(file) => file,
-        Err(_) => fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&file)?,
-    };
+    let mut file = fs::OpenOptions::new()
+        .mode(0o600)
+        .write(true)
+        .create(true)
+        .open(&file)?;
+    // let mut file = match fs::OpenOptions::new().mode(0o600).write(true).open(&file) {
+    //     Ok(file) => file,
+    //     Err(_) => fs::OpenOptions::new()
+    //         .mode(0o600)
+    //         .write(true)
+    //         .create(true)
+    //         .open(&file)?,
+    // };
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
 
     let mut gpg_id = String::new();
@@ -271,7 +280,7 @@ where
 
     let mut signing_key = None;
 
-    for &key in [&*PASSWORD_STORE_SIGNING_KEY, &gpg_id, &*PASSWORD_STORE_KEY].iter() {
+    for &key in [&PASSWORD_STORE_SIGNING_KEY, &gpg_id, &PASSWORD_STORE_KEY].iter() {
         match ctx.get_key(key) {
             Ok(key) => {
                 signing_key = Some(key);

@@ -37,8 +37,8 @@ pub fn tree<P: Into<PathBuf>>(path: P) -> Fallible<Tree> {
     Ok(result)
 }
 
-#[derive(Debug, Clone)]
-pub struct Tree(PathBuf, pub Vec<Tree>);
+#[derive(Debug, Clone, Default)]
+pub struct Tree(pub PathBuf, pub Vec<Tree>);
 
 impl Tree {
     fn draw_tree(f: &mut fmt::Formatter, leaves: &[Tree], prefix: Vec<bool>) -> fmt::Result {
@@ -114,3 +114,15 @@ impl Display for Tree {
 }
 
 // https://github.com/kddeisz/tree
+
+// TODO: petgraph
+// use petgraph::graph::NodeIndex;
+// use petgraph::stable_graph::StableGraph;
+// use petgraph::visit::Dfs;
+// use std::collections::HashMap;
+
+// pub struct Graph {
+//     pub graph: StableGraph<std::path::PathBuf, usize>, // usize = depth of pathbuf
+//     pub nodes: HashMap<std::path::PathBuf, NodeIndex>, // usize = index of child (child number)
+//     pub root: Option<std::path::PathBuf>,
+// }

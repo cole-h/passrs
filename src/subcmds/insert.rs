@@ -1,7 +1,8 @@
 use std::io::{self, BufRead, Write};
-use termion::input::TermRead;
+use std::os::unix::fs::OpenOptionsExt;
 
 use failure::Fallible;
+use termion::input::TermRead;
 
 use crate::util;
 use crate::PassrsError;
@@ -29,6 +30,7 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fa
                 if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
             {
                 std::fs::OpenOptions::new()
+                    .mode(0o600)
                     .write(true)
                     .truncate(true)
                     .open(&path)?;
@@ -71,6 +73,7 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fa
 
             input.unwrap()
         };
+        writeln!(stdout)?;
 
         write!(stdout, "Re-enter secret for {}: ", pass_name)?;
         io::stdout().flush()?;
@@ -82,6 +85,7 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fa
 
             input.unwrap()
         };
+        writeln!(stdout)?;
 
         if input == check {
             Some(input)

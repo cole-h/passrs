@@ -1,6 +1,6 @@
 // FIXME: some funcs take Path, some take &str, some take String, and some take
 // PathBuf... wtf bro
-// FIXME: deal with all unwraps, unless I can guarantee that it won't panic
+// FIXME: deal with all unwraps, change to `expect` unless I can guarantee that it won't panic
 // FIXME: ensure all/most code is DRY -- Don't Repeat Yourself
 // FIXME: document EVERYTHING -- all functions, structs, etc
 //   https://doc.rust-lang.org/book/ch14-02-publishing-to-crates-io.html#making-useful-documentation-comments
@@ -13,7 +13,6 @@ use failure::Fail;
 mod cli;
 mod clipboard;
 mod consts;
-mod error;
 mod event;
 #[cfg(feature = "otp")]
 mod otp;
@@ -72,16 +71,13 @@ pub(crate) enum PassrsError {
     SourceIsDestination,
     #[fail(display = "Error: '{}' is a directory", _0)]
     PathIsDir(String),
-    #[fail(display = "Error: Key '{}' is already the signing key", _0)]
-    SameKey(String),
     #[fail(display = "Contents unchanged")]
     ContentsUnchanged,
     #[fail(display = "Error: Failed to get contents of clipboard")]
     PasteFailed,
 }
 
-fn main() /* -> failure::Fallible<()> */
-{
+fn main() -> failure::Fallible<()> {
     //
 
     if let Err(err) = cli::opt() {
@@ -92,7 +88,7 @@ fn main() /* -> failure::Fallible<()> */
 
     // cli::opt()?;
 
-    // Ok(())
+    Ok(())
 }
 
 // TODO: every subcommand should use the following scaffolding before doing
