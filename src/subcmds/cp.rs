@@ -3,12 +3,11 @@ use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use termion::input::TermRead;
 
-use failure::Fallible;
-
 use crate::util;
 use crate::PassrsError;
+use crate::Result;
 
-pub fn cp(force: bool, source: String, dest: String) -> Fallible<()> {
+pub fn cp(force: bool, source: String, dest: String) -> Result<()> {
     let source_path = util::canonicalize_path(&source)?;
     let dest_path = util::canonicalize_path(&dest)?;
 

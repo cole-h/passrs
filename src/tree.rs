@@ -2,8 +2,9 @@ use std::fmt::{self, Display};
 use std::fs;
 use std::path::PathBuf;
 
-use failure::Fallible;
 use termion::{color, style};
+
+use crate::Result;
 
 const EDGE: &str = "├── ";
 const LINE: &str = "│   ";
@@ -13,7 +14,7 @@ const BLANK: &str = "    ";
 // TODO: make the tree from the path's components -- HashMap? anything will need indirection
 // ignore::WalkBuilder might help with the "only include matches" scenario
 
-pub fn tree<P: Into<PathBuf>>(path: P) -> Fallible<Tree> {
+pub fn tree<P: Into<PathBuf>>(path: P) -> Result<Tree> {
     let path = path.into().canonicalize()?;
     let result = fs::read_dir(&path)?.filter_map(|e| e.ok()).fold(
         Tree(path, Vec::new()),

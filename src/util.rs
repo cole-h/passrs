@@ -5,7 +5,7 @@ use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
-use failure::{err_msg, Fallible};
+use anyhow::Context as _;
 use git2::Repository;
 use gpgme::{Context, Data, Protocol, SignMode};
 use rand::Rng;
@@ -15,6 +15,7 @@ use crate::consts::{
     GPG_ID_FILE, HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_SIGNING_KEY,
 };
 use crate::PassrsError;
+use crate::Result;
 
 // TODO: check paths in every function that reads or writes to .password-store
 // TODO: move all git-related fns to a git.rs
@@ -28,7 +29,7 @@ use crate::PassrsError;
 
 // TODO: verify function doesn't munge the path
 /// Paths may be an absolute path to the entry, or relative to the store's root.
-pub fn canonicalize_path<S>(path: S) -> Fallible<PathBuf>
+pub fn canonicalize_path<S>(path: S) -> Result<PathBuf>
 where
     S: AsRef<str>,
 {
@@ -58,7 +59,7 @@ where
     Ok(PathBuf::from(path))
 }
 
-pub fn exact_path<S>(path: S) -> Fallible<PathBuf>
+pub fn exact_path<S>(path: S) -> Result<PathBuf>
 where
     S: AsRef<str>,
 {
@@ -76,7 +77,7 @@ where
     Ok(PathBuf::from(path))
 }
 
-pub fn verify_store_exists() -> Fallible<()> {
+pub fn verify_store_exists() -> Result<()> {
     let meta = fs::metadata(&*PASSWORD_STORE_DIR);
     if meta.is_err() {
         return Err(PassrsError::StoreDoesntExist.into());
@@ -92,7 +93,7 @@ pub fn verify_store_exists() -> Fallible<()> {
 }
 
 /// Returns `false` if path does not exist (success), `true` if it does exist.
-pub fn path_exists<P>(path: P) -> Fallible<bool>
+pub fn path_exists<P>(path: P) -> Result<bool>
 where
     P: AsRef<Path>,
 {
@@ -111,7 +112,7 @@ where
 
 // TODO: check for .. and shell expansion
 // TODO: only allowed to specify in PASSWORD_STORE_DIR
-fn check_sneaky_paths<P>(path: P) -> Fallible<()>
+fn check_sneaky_paths<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
@@ -131,7 +132,7 @@ where
 /// Search in PASSWORD_STORE_DIR for `target`.
 // TODO: fuzzy searching
 // TODO: maybe frecency as well? (a la z, j, fasd, autojump, etc)
-pub fn find_target_single<S>(target: S) -> Fallible<Vec<String>>
+pub fn find_target_single<S>(target: S) -> Result<Vec<String>>
 where
     S: AsRef<str> + ToString,
 {
@@ -170,7 +171,7 @@ where
 }
 
 // TODO: fuzzy search feature -- 5 closest matches
-// pub fn find_target_multi<V>(targets: V) -> Fallible<Vec<String>>
+// pub fn find_target_multi<V>(targets: V) -> Result<Vec<String>>
 // where
 //     V: AsRef<[String]>,
 // {
@@ -195,7 +196,7 @@ where
 
 /// Decrypts the file into a `Vec` of `String`s. This will return an `Err` if
 /// the plaintext is not validly UTF8 encoded.
-pub fn decrypt_file_into_strings<S>(file: S) -> Fallible<Vec<String>>
+pub fn decrypt_file_into_strings<S>(file: S) -> Result<Vec<String>>
 where
     S: Into<String>,
 {
@@ -213,7 +214,7 @@ where
 }
 
 /// Decrypts the given file into a `Vec` of bytes.
-pub fn decrypt_file_into_bytes<S>(file: S) -> Fallible<Vec<u8>>
+pub fn decrypt_file_into_bytes<S>(file: S) -> Result<Vec<u8>>
 where
     S: AsRef<Path>,
 {
@@ -231,7 +232,7 @@ where
 }
 
 /// Creates all directories to allow `file` to be created.
-pub fn create_descending_dirs<S>(file: S) -> Fallible<()>
+pub fn create_descending_dirs<S>(file: S) -> Result<()>
 where
     S: AsRef<Path>,
 {
@@ -249,7 +250,7 @@ where
 /// Callers must verify that `PASSWORD_STORE_DIR` exists and is initialized
 /// (usually by verifying the `.gpg-id` file exists and a `git` repo has been
 /// initialized).
-pub fn encrypt_bytes_into_file<S>(plain: &[u8], file: S) -> Fallible<()>
+pub fn encrypt_bytes_into_file<S>(plain: &[u8], file: S) -> Result<()>
 where
     S: AsRef<Path>,
 {
@@ -301,7 +302,7 @@ where
     Ok(())
 }
 
-fn git_open<S>(path: S) -> Fallible<Repository>
+fn git_open<S>(path: S) -> Result<Repository>
 where
     S: Into<String>,
 {
@@ -324,7 +325,7 @@ where
 /// dirty. Callers must verify that `PASSWORD_STORE_DIR` exists and is
 /// initialized (usually by verifying the `.gpg-id` file exists and a `git` repo
 /// has been initialized).
-pub fn commit<S>(commit_message: S) -> Fallible<()>
+pub fn commit<S>(commit_message: S) -> Result<()>
 where
     S: AsRef<str>,
 {
@@ -368,9 +369,7 @@ where
         ctx.set_armor(true);
         ctx.sign(SignMode::Detached, &*buf, &mut outbuf)?;
 
-        let contents = buf
-            .as_str()
-            .ok_or_else(|| err_msg("Buffer was not valid UTF-8"))?;
+        let contents = buf.as_str().with_context(|| "Buffer was not valid UTF-8")?;
         let out = std::str::from_utf8(&outbuf)?;
         let commit = repo.commit_signed(&contents, &out, Some("gpgsig"))?;
 
@@ -389,14 +388,14 @@ where
     Ok(())
 }
 
-fn uid(path: &Path) -> Fallible<(u64, u64)> {
+fn uid(path: &Path) -> Result<(u64, u64)> {
     let metadata = path.metadata()?;
     Ok((metadata.dev(), metadata.ino()))
 }
 
 // TODO: investigate licensing; taken from
 // --> https://github.com/mdunsmuir/copy_dir/blob/master/src/lib.rs#L118
-pub fn copy<P, Q>(source: &P, dest: &Q, mut root: Option<(u64, u64)>) -> Fallible<()>
+pub fn copy<P, Q>(source: &P, dest: &Q, mut root: Option<(u64, u64)>) -> Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
@@ -432,7 +431,7 @@ where
     Ok(())
 }
 
-pub fn generate_chars_from_set<V>(set: V, len: usize) -> Fallible<Vec<u8>>
+pub fn generate_chars_from_set<V>(set: V, len: usize) -> Result<Vec<u8>>
 where
     V: AsRef<[u8]>,
 {
@@ -451,7 +450,7 @@ where
 
 // TODO: research licensing
 // re: https://github.com/mdunsmuir/copy_dir/blob/0.1.2/src/lib.rs#L67
-// fn copy_dir<Q: AsRef<Path>, P: AsRef<Path>>(from: P, to: Q) -> Fallible<()> {
+// fn copy_dir<Q: AsRef<Path>, P: AsRef<Path>>(from: P, to: Q) -> Result<()> {
 //     if !from.as_ref().exists() {
 //         return Err(std::io::Error::new(
 //             std::io::ErrorKind::NotFound,

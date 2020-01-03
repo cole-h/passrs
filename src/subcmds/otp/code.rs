@@ -1,17 +1,18 @@
-use failure::{err_msg, Fallible};
+use anyhow::Context;
 
 use crate::clipboard;
 use crate::otp::{HOTPBuilder, HashAlgorithm, TOTPBuilder};
 use crate::subcmds::otp::validate;
 use crate::ui::{self, UiResult};
 use crate::util;
+use crate::Result;
 
-pub fn code(clip: bool, pass_name: String) -> Fallible<()> {
+pub fn code(clip: bool, pass_name: String) -> Result<()> {
     let file = ui::display_matches_for_target(&pass_name)?;
 
     if let UiResult::Success(file) = file {
         let otp = util::decrypt_file_into_strings(file)?;
-        let otp = otp.first().ok_or_else(|| err_msg("Vec was empty"))?;
+        let otp = otp.first().with_context(|| "Vec was empty")?;
 
         // Ensure `otp` is a valid URI
         validate::validate(otp)?;
@@ -40,7 +41,7 @@ fn generate_totp<S>(
     period: u64,
     algorithm: HashAlgorithm,
     digits: usize,
-) -> Fallible<String>
+) -> Result<String>
 where
     S: Into<String>,
 {
@@ -63,7 +64,7 @@ fn generate_hotp<S>(
     counter: u64,
     algorithm: HashAlgorithm,
     digits: usize,
-) -> Fallible<String>
+) -> Result<String>
 where
     S: Into<String>,
 {

@@ -1,8 +1,9 @@
 use data_encoding::BASE32_NOPAD;
 use data_encoding::HEXLOWER_PERMISSIVE;
-use failure::Fallible;
 use ring::hmac;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::Result;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum HashAlgorithm {
@@ -21,7 +22,7 @@ macro_rules! otp_builder {
             self
         }
 
-        pub fn base32_secret<S>(&mut self, secret: S) -> Fallible<&mut $t>
+        pub fn base32_secret<S>(&mut self, secret: S) -> Result<&mut $t>
         where
             S: AsRef<[u8]>,
         {

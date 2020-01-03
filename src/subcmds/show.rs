@@ -1,7 +1,7 @@
 use std::process::Command;
 
+use anyhow::Context;
 use data_encoding::HEXLOWER;
-use failure::{err_msg, Fallible};
 use ring::digest;
 use termion::{color, style};
 
@@ -9,8 +9,9 @@ use crate::clipboard;
 use crate::consts::{PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_DIR};
 use crate::ui::{self, UiResult};
 use crate::util;
+use crate::Result;
 
-pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Fallible<()> {
+pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Result<()> {
     let file = ui::display_matches_for_target(&pass_name)?;
 
     match file {
@@ -21,8 +22,8 @@ pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Fallible<()> {
                 let contents = match clip {
                     Some(line) => password
                         .get(line.saturating_sub(1))
-                        .ok_or_else(|| err_msg(format!("File at line {} was empty", line)))?,
-                    None => password.first().ok_or_else(|| err_msg("Vec was empty"))?,
+                        .with_context(|| format!("File at line {} was empty", line))?,
+                    None => password.first().with_context(|| "Vec was empty")?,
                 };
                 let hash =
                     HEXLOWER.encode(digest::digest(&digest::SHA256, contents.as_bytes()).as_ref());

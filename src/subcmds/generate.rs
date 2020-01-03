@@ -4,7 +4,6 @@ use std::process::Command;
 use termion::input::TermRead;
 
 use data_encoding::HEXLOWER;
-use failure::Fallible;
 use ring::digest;
 use termion::{color, style};
 
@@ -15,6 +14,7 @@ use crate::consts::{
 };
 use crate::util;
 use crate::PassrsError;
+use crate::Result;
 
 pub fn generate(
     no_symbols: bool,
@@ -23,7 +23,7 @@ pub fn generate(
     force: bool,
     pass_name: String,
     pass_length: Option<usize>,
-) -> Fallible<()> {
+) -> Result<()> {
     let path = util::canonicalize_path(&pass_name)?;
 
     util::create_descending_dirs(&path)?;

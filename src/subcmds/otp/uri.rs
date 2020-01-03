@@ -1,20 +1,21 @@
 use std::fs::File;
 use std::io::Write;
 
-use failure::{err_msg, Fallible};
+use anyhow::Context;
 use qrcode::render::svg;
 use qrcode::QrCode;
 
 use crate::clipboard;
 use crate::ui::{self, UiResult};
 use crate::util;
+use crate::Result;
 
-pub fn uri(clip: bool, qrcode: Option<String>, pass_name: String) -> Fallible<()> {
+pub fn uri(clip: bool, qrcode: Option<String>, pass_name: String) -> Result<()> {
     let file = ui::display_matches_for_target(&pass_name)?;
 
     if let UiResult::Success(file) = file {
         let otp = util::decrypt_file_into_strings(file)?;
-        let otp = otp.first().ok_or_else(|| err_msg("Vec was empty"))?.trim();
+        let otp = otp.first().with_context(|| "Vec was empty")?.trim();
 
         if clip {
             clipboard::clip(otp)?;

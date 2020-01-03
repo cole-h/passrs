@@ -1,14 +1,14 @@
 use std::process::Command;
 
 use data_encoding::HEXLOWER;
-use failure::Fallible;
 use ring::digest;
 
 use crate::clipboard;
 use crate::consts::PASSRS_UNCLIP_HASH;
 use crate::PassrsError;
+use crate::Result;
 
-pub fn unclip(timeout: u64, force: bool) -> Fallible<()> {
+pub fn unclip(timeout: u64, force: bool) -> Result<()> {
     if *PASSRS_UNCLIP_HASH == "" {
         eprintln!(
             "Unclip is spawned in the background when you copy to your clipboard. \

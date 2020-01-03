@@ -1,10 +1,9 @@
-use failure::Fallible;
-
 use crate::consts::PASSWORD_STORE_DIR;
 use crate::util;
 use crate::PassrsError;
+use crate::Result;
 
-pub fn find(name: String) -> Fallible<()> {
+pub fn find(name: String) -> Result<()> {
     let matches = util::find_target_single(&name)?;
 
     // FIXME: For now, just following `gopass`s lead: straightup print the matches to stdout.

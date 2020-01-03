@@ -1,4 +1,4 @@
-use failure::{err_msg, Fallible};
+use anyhow::Context;
 use grep_printer::{ColorSpecs, StandardBuilder};
 use grep_regex::RegexMatcher;
 use grep_searcher::{BinaryDetection, SearcherBuilder};
@@ -8,9 +8,10 @@ use walkdir::WalkDir;
 
 use crate::consts::{HOME, PASSWORD_STORE_DIR};
 use crate::util;
+use crate::Result;
 
 // Takes ~40 seconds to search the entirety of my ~400 file store
-pub fn grep(search: String) -> Fallible<()> {
+pub fn grep(search: String) -> Result<()> {
     let mut searcher = SearcherBuilder::new()
         .binary_detection(BinaryDetection::quit(b'\x00'))
         .build();
@@ -53,14 +54,14 @@ pub fn grep(search: String) -> Fallible<()> {
         let path = entry
             .path()
             .to_str()
-            .ok_or_else(|| err_msg("Entry did not contain a valid path"))?;
+            .with_context(|| "Entry did not contain a valid path")?;
         if !path.ends_with(".gpg") {
             continue;
         }
 
         let separator = path
             .rfind('/')
-            .ok_or_else(|| err_msg("Path did not contain a folder"))?
+            .with_context(|| "Path did not contain a folder")?
             + 1;
         let pre = path[PASSWORD_STORE_DIR.len()..separator].replace(&*HOME, "~");
         // We guarantee all paths end in .gpg by this point, so we can cut it

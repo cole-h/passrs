@@ -1,9 +1,8 @@
-use failure::Fallible;
-
 use crate::consts::PASSWORD_STORE_DIR;
 use crate::tree;
+use crate::Result;
 
-pub fn ls(path: Option<String>) -> Fallible<()> {
+pub fn ls(path: Option<String>) -> Result<()> {
     let root = if let Some(path) = path {
         if path.contains(&*PASSWORD_STORE_DIR) {
             path

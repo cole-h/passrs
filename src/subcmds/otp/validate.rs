@@ -1,9 +1,10 @@
-use failure::{err_msg, Fallible};
+use anyhow::Context;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::otp::HashAlgorithm;
 use crate::PassrsError;
+use crate::Result;
 
 const SCHEME: &str = "otpauth://";
 const OTP_TYPE: &str = "(?P<type>totp|hotp)/";
@@ -21,7 +22,7 @@ static URI_PATTERN: Lazy<String> = Lazy::new(|| {
     .concat()
 });
 
-pub fn validate<S>(uri: S) -> Fallible<()>
+pub fn validate<S>(uri: S) -> Result<()>
 where
     S: Into<String>,
 {
@@ -35,7 +36,7 @@ where
     Err(PassrsError::InvalidKeyUri.into())
 }
 
-pub fn get_base32_secret<S>(uri: S) -> Fallible<String>
+pub fn get_base32_secret<S>(uri: S) -> Result<String>
 where
     S: Into<String>,
 {
@@ -44,17 +45,17 @@ where
 
     let captures = re
         .captures(&uri)
-        .ok_or_else(|| err_msg("Failed to get regex captures"))?;
+        .with_context(|| "Failed to get regex captures")?;
     let secret = captures
         .name("secret")
-        .ok_or_else(|| err_msg("Failed to get secret from regex"))?
+        .with_context(|| "Failed to get secret from regex")?
         .as_str()
         .to_owned();
 
     Ok(secret)
 }
 
-pub fn get_period<S>(uri: S) -> Fallible<u64>
+pub fn get_period<S>(uri: S) -> Result<u64>
 where
     S: Into<String>,
 {
@@ -63,7 +64,7 @@ where
 
     let captures = re
         .captures(&uri)
-        .ok_or_else(|| err_msg("Failed to get regex captures"))?;
+        .with_context(|| "Failed to get regex captures")?;
     let period = match captures.name("period") {
         Some(num) => num.as_str().parse::<u64>()?,
         None => 30,
@@ -72,7 +73,7 @@ where
     Ok(period)
 }
 
-pub fn get_digits<S>(uri: S) -> Fallible<usize>
+pub fn get_digits<S>(uri: S) -> Result<usize>
 where
     S: Into<String>,
 {
@@ -81,7 +82,7 @@ where
 
     let captures = re
         .captures(&uri)
-        .ok_or_else(|| err_msg("Failed to get regex captures"))?;
+        .with_context(|| "Failed to get regex captures")?;
     let digits = match captures.name("digits") {
         Some(num) => num.as_str().parse::<usize>()?,
         None => 6,
@@ -91,7 +92,7 @@ where
 }
 
 #[allow(deprecated)]
-pub fn get_algorithm<S>(uri: S) -> Fallible<HashAlgorithm>
+pub fn get_algorithm<S>(uri: S) -> Result<HashAlgorithm>
 where
     S: Into<String>,
 {
@@ -100,7 +101,7 @@ where
 
     let captures = re
         .captures(&uri)
-        .ok_or_else(|| err_msg("Failed to get regex captures"))?;
+        .with_context(|| "Failed to get regex captures")?;
     let algo = match captures.name("algorithm") {
         Some(algo) => match algo.as_str().to_lowercase().as_ref() {
             "sha1" => HashAlgorithm::Sha1,

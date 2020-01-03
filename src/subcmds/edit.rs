@@ -5,15 +5,15 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use data_encoding::HEXLOWER;
-use failure::Fallible;
 use ring::digest;
 use zeroize::Zeroize;
 
 use crate::consts::{EDITOR, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS};
 use crate::util;
 use crate::PassrsError;
+use crate::Result;
 
-pub fn edit(pass_name: String) -> Fallible<()> {
+pub fn edit(pass_name: String) -> Result<()> {
     // 1. decrypt file to /dev/shm/{exe}.{20 rand alnum chars}/{5 rand
     // alnum}-path-components-except-for-root.txt
     let path = temp_file(&pass_name)?;
@@ -78,7 +78,7 @@ pub fn edit(pass_name: String) -> Fallible<()> {
     Ok(())
 }
 
-fn temp_file<S>(path: S) -> Fallible<String>
+fn temp_file<S>(path: S) -> Result<String>
 where
     S: AsRef<str>,
 {

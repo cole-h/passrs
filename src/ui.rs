@@ -1,6 +1,6 @@
 use std::io::Write;
 
-use failure::{err_msg, Fallible};
+use anyhow::Context;
 use termion::event::Key;
 use termion::input::MouseTerminal;
 use termion::raw::IntoRawMode;
@@ -17,6 +17,7 @@ use crate::consts::PASSWORD_STORE_DIR;
 use crate::event::{Event, Events};
 use crate::util;
 use crate::PassrsError;
+use crate::Result;
 
 pub enum UiResult {
     Success(String),
@@ -85,13 +86,13 @@ impl Ui {
 /// | <↑/↓> to change the selection, <→> to show, <←> to copy, |
 /// | ~~<s> to sync~~, <e> to edit, <ESC> to quit              |
 /// +----------------------------------------------------------+
-fn display_matches(matches: Vec<String>) -> Fallible<UiResult> {
+fn display_matches(matches: Vec<String>) -> Result<UiResult> {
     let bin_path = std::env::current_exe()?;
     let binary_name = bin_path
         .file_name()
-        .ok_or_else(|| err_msg("Option did not contain a value."))?
+        .with_context(|| "Option did not contain a value.")?
         .to_str()
-        .ok_or_else(|| err_msg("Option did not contain a value."))?;
+        .with_context(|| "Option did not contain a value.")?;
 
     let mut app = Ui::new(matches.clone());
     let mut entry = None;
@@ -259,7 +260,7 @@ fn display_matches(matches: Vec<String>) -> Fallible<UiResult> {
     }
 }
 
-pub fn display_matches_for_target(target: &str) -> Fallible<UiResult> {
+pub fn display_matches_for_target(target: &str) -> Result<UiResult> {
     let matches = util::find_target_single(target)?;
 
     if matches.len() == 1 {
@@ -279,7 +280,7 @@ pub fn display_matches_for_target(target: &str) -> Fallible<UiResult> {
     Ok(display_matches(matches)?)
 }
 
-// pub fn display_matches_for_targets(matches: Vec<String>) -> Fallible<UiResult> {
+// pub fn display_matches_for_targets(matches: Vec<String>) -> Result<UiResult> {
 //     if matches.len() == 1 {
 //         return Ok(UiResult::Success(matches[0].to_owned()));
 //     }

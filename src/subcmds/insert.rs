@@ -1,13 +1,13 @@
 use std::io::{self, BufRead, Write};
 use std::os::unix::fs::OpenOptionsExt;
 
-use failure::Fallible;
 use termion::input::TermRead;
 
 use crate::util;
 use crate::PassrsError;
+use crate::Result;
 
-pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Fallible<()> {
+pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Result<()> {
     let path = util::canonicalize_path(&pass_name)?;
 
     util::create_descending_dirs(&path)?;

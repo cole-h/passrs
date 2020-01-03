@@ -4,15 +4,16 @@ use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 
-use failure::{err_msg, Fallible};
+use anyhow::Context as _;
 use git2::Repository;
 use gpgme::{Context, Data, Protocol, SignMode};
 
 use crate::consts::{PASSWORD_STORE_DIR, PASSWORD_STORE_SIGNING_KEY};
 use crate::util;
 use crate::PassrsError;
+use crate::Result;
 
-pub fn init(path: Option<String>, keys: Vec<String>) -> Fallible<()> {
+pub fn init(path: Option<String>, keys: Vec<String>) -> Result<()> {
     let keys = if keys.is_empty() {
         vec![PASSWORD_STORE_SIGNING_KEY.to_owned()]
     } else {
@@ -87,7 +88,7 @@ pub fn init(path: Option<String>, keys: Vec<String>) -> Fallible<()> {
     Ok(())
 }
 
-fn recrypt_store<P, V>(dir: P, keys: V) -> Fallible<()>
+fn recrypt_store<P, V>(dir: P, keys: V) -> Result<()>
 where
     P: AsRef<Path>,
     V: AsRef<[String]>,
@@ -135,7 +136,7 @@ where
     Ok(())
 }
 
-fn recrypt_file<S, V>(file: S, keys: V) -> Fallible<()>
+fn recrypt_file<S, V>(file: S, keys: V) -> Result<()>
 where
     S: AsRef<Path>,
     V: AsRef<[String]>,
@@ -167,7 +168,7 @@ where
     Ok(())
 }
 
-fn update_key<S, P>(path: P, keys: S) -> Fallible<()>
+fn update_key<S, P>(path: P, keys: S) -> Result<()>
 where
     P: AsRef<Path>,
     S: AsRef<[String]>,
@@ -216,7 +217,7 @@ where
     Ok(())
 }
 
-fn verify_keys<S>(gpg_keys: S) -> Fallible<Vec<String>>
+fn verify_keys<S>(gpg_keys: S) -> Result<Vec<String>>
 where
     S: AsRef<[String]>,
 {
@@ -230,7 +231,7 @@ where
             let user_id = if let Ok(email) = secret_key
                 .user_ids()
                 .nth(0)
-                .ok_or_else(|| err_msg("Option did not contain a value."))?
+                .with_context(|| "Option did not contain a value.")?
                 .email()
             {
                 email.to_owned()
@@ -251,7 +252,7 @@ where
     }
 }
 
-fn git_prep(repo: &Repository) -> Fallible<(git2::Oid, git2::Signature, Vec<git2::Commit>)> {
+fn git_prep(repo: &Repository) -> Result<(git2::Oid, git2::Signature, Vec<git2::Commit>)> {
     let mut index = repo.index()?;
 
     index.add_all(["."].iter(), git2::IndexAddOption::DEFAULT, None)?;
@@ -280,7 +281,7 @@ fn git_prep(repo: &Repository) -> Fallible<(git2::Oid, git2::Signature, Vec<git2
     Ok((tree_id, sig, parents))
 }
 
-fn create_store<P, S>(path: P, gpg_keys: S) -> Fallible<()>
+fn create_store<P, S>(path: P, gpg_keys: S) -> Result<()>
 where
     P: AsRef<Path>,
     S: AsRef<[String]>,
@@ -340,7 +341,7 @@ where
 }
 
 // TODO: abstract away so most of the innards can be used for setup_store
-fn create_substore<P, Q, S>(store: P, path: Q, gpg_keys: S) -> Fallible<()>
+fn create_substore<P, Q, S>(store: P, path: Q, gpg_keys: S) -> Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,

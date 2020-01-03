@@ -2,12 +2,11 @@ use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use termion::input::TermRead;
 
-use failure::Fallible;
-
 use crate::util;
 use crate::PassrsError;
+use crate::Result;
 
-pub fn insert(force: bool, echo: bool, pass_name: String, secret: Option<String>) -> Fallible<()> {
+pub fn insert(force: bool, echo: bool, pass_name: String, secret: Option<String>) -> Result<()> {
     let path = util::canonicalize_path(&pass_name)?;
     // let path = format!("{}.gpg", path);
 

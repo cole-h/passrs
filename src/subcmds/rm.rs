@@ -3,13 +3,12 @@ use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use termion::input::TermRead;
 
-use failure::Fallible;
-
 use crate::util;
 use crate::PassrsError;
+use crate::Result;
 
 // TODO: `pass rm` also removes the pathspec from the repo
-pub fn rm(recursive: bool, force: bool, pass_name: String) -> Fallible<()> {
+pub fn rm(recursive: bool, force: bool, pass_name: String) -> Result<()> {
     let path = util::canonicalize_path(&pass_name)?;
 
     // let is_file = match fs::metadata(&path) {

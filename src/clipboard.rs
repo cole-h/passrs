@@ -1,13 +1,14 @@
+use anyhow::Context;
+
 use std::env;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use failure::{err_msg, Fallible};
-
 use crate::consts::PASSWORD_STORE_X_SELECTION;
 use crate::PassrsError;
+use crate::Result;
 
-pub fn clip<S>(contents: S) -> Fallible<()>
+pub fn clip<S>(contents: S) -> Result<()>
 where
     S: AsRef<[u8]>,
 {
@@ -22,7 +23,7 @@ where
             .stdin(Stdio::piped())
             .spawn()?
             .stdin
-            .ok_or_else(|| err_msg("stdin wasn't captured"))?
+            .with_context(|| "stdin wasn't captured")?
             .write_all(contents)?;
     } else if env::var("DISPLAY").is_ok() {
         Command::new("xclip")
@@ -30,14 +31,14 @@ where
             .stdin(Stdio::piped())
             .spawn()?
             .stdin
-            .ok_or_else(|| err_msg("stdin wasn't captured"))?
+            .with_context(|| "stdin wasn't captured")?
             .write_all(contents)?;
     }
 
     Ok(())
 }
 
-pub fn paste() -> Fallible<Vec<u8>> {
+pub fn paste() -> Result<Vec<u8>> {
     let bytes = if env::var("WAYLAND_DISPLAY").is_ok() {
         Command::new("wl-paste")
             .arg("--no-newline")

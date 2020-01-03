@@ -1,8 +1,8 @@
-use failure::Fallible;
 use structopt::{clap::AppSettings, StructOpt};
 
 use crate::subcmds::*;
 use crate::util;
+use crate::Result;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -216,7 +216,7 @@ enum Otp {
     },
 }
 
-pub fn opt() -> Fallible<()> {
+pub fn opt() -> Result<()> {
     let matches = Pass::from_args();
     dbg!(&matches);
 
