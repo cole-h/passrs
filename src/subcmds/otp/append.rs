@@ -1,14 +1,29 @@
+use anyhow::Result;
+
+use crate::subcmds::otp::validate;
 use crate::util;
-use crate::Result;
 
-pub fn append(echo: bool, pass_name: String, secret: Option<String>) -> Result<()> {
-    // TODO: if pass_name is a folder, write to pass_name/otp
-    if echo {
-        //
+pub fn append(echo: bool, secret_name: String, from_secret: bool) -> Result<()> {
+    let path = util::canonicalize_path(&secret_name)?;
+
+    if from_secret {
+        let secret = util::prompt_for_secret(echo, &secret_name)?;
+
+        // if we prompted the user for a secret and got one
+        if let Some(secret) = secret {
+            let secret = format!("otpauth://totp/{}?secret={}", secret_name, secret);
+            validate::validate(&secret)?;
+            util::append_encrypted_bytes(secret.as_bytes(), path)?;
+        }
+    } else {
+        let secret = util::prompt_for_secret(echo, &secret_name)?;
+
+        if let Some(secret) = secret {
+            validate::validate(&secret)?;
+            util::append_encrypted_bytes(secret.as_bytes(), path)?;
+        }
     }
-    // TODO: secret
-    let _ = secret;
 
-    util::commit(format!("Append OTP secret for {}", pass_name))?;
+    util::commit(format!("Append OTP secret for {}", secret_name))?;
     Ok(())
 }

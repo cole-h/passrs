@@ -1,32 +1,20 @@
 use std::fs;
 use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
+
+use anyhow::Result;
 use termion::input::TermRead;
 
 use crate::util;
 use crate::PassrsError;
-use crate::Result;
 
 // TODO: `pass rm` also removes the pathspec from the repo
 pub fn rm(recursive: bool, force: bool, pass_name: String) -> Result<()> {
     let path = util::canonicalize_path(&pass_name)?;
 
-    // let is_file = match fs::metadata(&path) {
-    //     Ok(md) => md.is_file(),
-    //     Err(_) => false,
-    // };
-
-    // let path = if path.ends_with(".gpg") {
-    //     path
-    // } else if !is_file {
-    //     format!("{}/", path)
-    // } else {
-    //     format!("{}.gpg", path)
-    // };
-
-    let stdin = std::io::stdin();
+    let stdin = io::stdin();
     let mut stdin = stdin.lock();
-    let stdout = std::io::stdout();
+    let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
     if !force && util::path_exists(&path)? {
@@ -42,7 +30,7 @@ pub fn rm(recursive: bool, force: bool, pass_name: String) -> Result<()> {
                 if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
             {
                 if path.is_file() {
-                    std::fs::OpenOptions::new()
+                    fs::OpenOptions::new()
                         .mode(0o600)
                         .write(true)
                         .truncate(true)
@@ -57,16 +45,14 @@ pub fn rm(recursive: bool, force: bool, pass_name: String) -> Result<()> {
         Ok(meta) => {
             if meta.is_dir() {
                 if recursive {
-                    // let sep = path.rfind('/').unwrap_or(0);
-                    // fs::remove_dir_all(&path[..sep])?;
-                    dbg!(("would remove", &path));
                     fs::remove_dir_all(&path)?;
+                    util::commit(format!("Remove folder {} from store", pass_name))?;
                 } else {
                     return Err(PassrsError::PathIsDir(path.display().to_string()).into());
                 }
             } else {
-                // fs::remove_file(path)?;
-                dbg!(("would remove", path));
+                fs::remove_file(path)?;
+                util::commit(format!("Remove entry {} from store", pass_name))?;
             }
         }
         Err(_) => {
@@ -74,6 +60,5 @@ pub fn rm(recursive: bool, force: bool, pass_name: String) -> Result<()> {
         }
     }
 
-    util::commit(format!("Remove {} from store", pass_name))?;
     Ok(())
 }

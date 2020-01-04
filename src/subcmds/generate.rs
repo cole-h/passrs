@@ -1,10 +1,16 @@
+use std::env;
+use std::fs;
 use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::process::Command;
-use termion::input::TermRead;
+use std::str;
+use std::thread;
+use std::time;
 
+use anyhow::Result;
 use data_encoding::HEXLOWER;
 use ring::digest;
+use termion::input::TermRead;
 use termion::{color, style};
 
 use crate::clipboard;
@@ -14,7 +20,6 @@ use crate::consts::{
 };
 use crate::util;
 use crate::PassrsError;
-use crate::Result;
 
 pub fn generate(
     no_symbols: bool,
@@ -28,9 +33,9 @@ pub fn generate(
 
     util::create_descending_dirs(&path)?;
 
-    let stdin = std::io::stdin();
+    let stdin = io::stdin();
     let mut stdin = stdin.lock();
-    let stdout = std::io::stdout();
+    let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
     if !force && util::path_exists(&path)? {
@@ -45,7 +50,7 @@ pub fn generate(
             Some(reply)
                 if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
             {
-                std::fs::OpenOptions::new()
+                fs::OpenOptions::new()
                     .mode(0o600)
                     .write(true)
                     .truncate(true)
@@ -68,7 +73,7 @@ pub fn generate(
     };
 
     let password_bytes = util::generate_chars_from_set(set, len)?;
-    let password = std::str::from_utf8(&password_bytes)?.to_owned();
+    let password = str::from_utf8(&password_bytes)?.to_owned();
 
     println!(
         "{bold}The generated password for {underline}{}{reset}{bold} is:\n{yellow}{bold}{}{reset}",
@@ -92,9 +97,9 @@ pub fn generate(
         clipboard::clip(&password)?;
 
         // otherwise, the process doesn't live long enough
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        thread::sleep(time::Duration::from_millis(50));
 
-        Command::new(std::env::current_exe()?)
+        Command::new(env::current_exe()?)
             .args(args)
             .env("PASSRS_UNCLIP_HASH", hash)
             .spawn()?;

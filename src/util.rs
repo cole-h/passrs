@@ -1,21 +1,21 @@
 use std::fs;
-use std::io::Read;
-use std::io::Write;
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use std::str;
 
-use anyhow::Context as _;
+use anyhow::{Context as _, Result};
 use git2::Repository;
 use gpgme::{Context, Data, Protocol, SignMode};
 use rand::Rng;
+use termion::input::TermRead;
 use walkdir::WalkDir;
 
 use crate::consts::{
     GPG_ID_FILE, HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_SIGNING_KEY,
 };
 use crate::PassrsError;
-use crate::Result;
 
 // TODO: check paths in every function that reads or writes to .password-store
 // TODO: move all git-related fns to a git.rs
@@ -40,6 +40,8 @@ where
         path = [PASSWORD_STORE_DIR.to_owned(), path].concat();
     }
 
+    self::check_sneaky_paths(&path)?;
+
     path = match fs::metadata(&path) {
         Ok(_) => path,
         Err(_) => {
@@ -50,11 +52,6 @@ where
             }
         }
     };
-    dbg!(&path);
-
-    check_sneaky_paths(&path)?;
-    // TODO: callers should create_descending_dirs when appropriate
-    // create_descending_dirs(&path)?;
 
     Ok(PathBuf::from(path))
 }
@@ -70,7 +67,8 @@ where
         path = [PASSWORD_STORE_DIR.to_owned(), path].concat();
     }
 
-    check_sneaky_paths(&path)?;
+    self::check_sneaky_paths(&path)?;
+
     // TODO: callers should create_descending_dirs when appropriate
     // create_descending_dirs(&path)?;
 
@@ -105,7 +103,7 @@ where
         return Ok(true);
     }
 
-    check_sneaky_paths(path)?;
+    self::check_sneaky_paths(path)?;
 
     Ok(false)
 }
@@ -154,11 +152,11 @@ where
         let filename = &entry.file_name().to_str().unwrap();
         let path = entry.clone().into_path().to_str().unwrap().to_owned();
 
-        if filename == &target.to_owned() {
+        if filename == &target.to_owned() && path.ends_with(".gpg") {
             return Ok(vec![path]);
         }
 
-        if path[PASSWORD_STORE_DIR.len()..].contains(target) && is_file {
+        if path[PASSWORD_STORE_DIR.len()..].contains(target) && is_file && path.ends_with(".gpg") {
             matches.push(path.to_owned());
         }
     }
@@ -198,16 +196,16 @@ where
 /// the plaintext is not validly UTF8 encoded.
 pub fn decrypt_file_into_strings<S>(file: S) -> Result<Vec<String>>
 where
-    S: Into<String>,
+    S: AsRef<str>,
 {
-    let file = file.into();
+    let file = file.as_ref();
 
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
     let mut cipher = Data::load(file)?;
     let mut plain = Vec::new();
     ctx.decrypt(&mut cipher, &mut plain)?;
 
-    let plain = std::str::from_utf8(&plain)?;
+    let plain = str::from_utf8(&plain)?;
     let out = plain.lines().map(ToOwned::to_owned).collect();
 
     Ok(out)
@@ -238,7 +236,9 @@ where
 {
     let file = file.as_ref();
     let file = file.display().to_string();
-    let sep = file.rfind('/').unwrap_or(0);
+    let sep = file
+        .rfind('/')
+        .with_context(|| format!("No folder found in file {}", file))?;
     let dir = &file[..sep];
     fs::create_dir_all(dir)?;
 
@@ -250,53 +250,103 @@ where
 /// Callers must verify that `PASSWORD_STORE_DIR` exists and is initialized
 /// (usually by verifying the `.gpg-id` file exists and a `git` repo has been
 /// initialized).
-pub fn encrypt_bytes_into_file<S>(plain: &[u8], file: S) -> Result<()>
+pub fn encrypt_bytes_into_file<S>(plain: &[u8], path: S) -> Result<()>
 where
     S: AsRef<Path>,
 {
-    let file = file.as_ref();
-    create_descending_dirs(&file)?;
+    let path = path.as_ref();
+    self::create_descending_dirs(&path)?;
 
-    dbg!(&file);
+    dbg!(&path);
     let mut file = fs::OpenOptions::new()
         .mode(0o600)
         .write(true)
         .create(true)
-        .open(&file)?;
-    // let mut file = match fs::OpenOptions::new().mode(0o600).write(true).open(&file) {
-    //     Ok(file) => file,
-    //     Err(_) => fs::OpenOptions::new()
-    //         .mode(0o600)
-    //         .write(true)
-    //         .create(true)
-    //         .open(&file)?,
-    // };
+        .open(&path)?;
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
+    let id_file = fs::OpenOptions::new().read(true).open(&*GPG_ID_FILE)?;
+    let reader = BufReader::new(&id_file);
+    let mut keys = vec![
+        PASSWORD_STORE_SIGNING_KEY.to_string(),
+        PASSWORD_STORE_KEY.to_string(),
+    ];
 
-    let mut gpg_id = String::new();
-    let mut id_file = fs::OpenOptions::new()
-        .read(true)
-        .open(format!("{}/.gpg-id", *PASSWORD_STORE_DIR))?;
-    id_file.read_to_string(&mut gpg_id)?;
+    for line in reader.lines() {
+        let line = line?;
+        keys.push(line);
+    }
 
-    let mut signing_key = None;
+    let mut signing_keys = Vec::new();
 
-    for &key in [&PASSWORD_STORE_SIGNING_KEY, &gpg_id, &PASSWORD_STORE_KEY].iter() {
+    for key in keys.iter() {
         match ctx.get_key(key) {
-            Ok(key) => {
-                signing_key = Some(key);
-                break;
-            }
+            Ok(key) => signing_keys.push(key),
             Err(_) => continue,
         };
     }
 
-    if let Some(key) = signing_key {
-        let mut cipher = Vec::new();
-        ctx.encrypt(&[key], plain, &mut cipher)?;
-        file.write_all(&cipher)?;
-    } else {
+    if signing_keys.is_empty() {
         return Err(PassrsError::NoSigningKeyFound.into());
+    } else {
+        let mut cipher = Vec::new();
+
+        ctx.encrypt(&signing_keys, plain, &mut cipher)?;
+        file.write_all(&cipher)?;
+    }
+
+    Ok(())
+}
+
+pub fn append_encrypted_bytes<S>(plain: &[u8], path: S) -> Result<()>
+where
+    S: AsRef<Path>,
+{
+    let path = path.as_ref();
+    create_descending_dirs(&path)?;
+
+    dbg!(&path);
+    let mut file = fs::OpenOptions::new()
+        .mode(0o600)
+        .write(true)
+        .create(true)
+        .open(&path)?;
+    let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
+    let id_file = fs::OpenOptions::new().read(true).open(&*GPG_ID_FILE)?;
+    let reader = BufReader::new(&id_file);
+    let mut keys = vec![
+        PASSWORD_STORE_SIGNING_KEY.to_string(),
+        PASSWORD_STORE_KEY.to_string(),
+    ];
+
+    for line in reader.lines() {
+        let line = line?;
+        keys.push(line);
+    }
+
+    let mut signing_keys = Vec::new();
+
+    for key in keys.iter() {
+        match ctx.get_key(key) {
+            Ok(key) => signing_keys.push(key),
+            Err(_) => continue,
+        };
+    }
+    dbg!(&signing_keys.len());
+
+    if signing_keys.is_empty() {
+        return Err(PassrsError::NoSigningKeyFound.into());
+    } else {
+        let mut input = Data::load(path.display().to_string())?;
+        let mut output = Vec::new();
+
+        ctx.decrypt(&mut input, &mut output)?;
+        output.push(b'\n');
+        output.extend(plain);
+
+        let mut contents = Vec::new();
+
+        ctx.encrypt(&signing_keys, &mut output, &mut contents)?;
+        file.write_all(&contents)?;
     }
 
     Ok(())
@@ -304,19 +354,13 @@ where
 
 fn git_open<S>(path: S) -> Result<Repository>
 where
-    S: Into<String>,
+    S: AsRef<str>,
 {
-    let path = path.into();
+    let path = path.as_ref();
 
-    check_sneaky_paths(&path)?;
+    self::check_sneaky_paths(&path)?;
 
-    let repo = match Repository::open(path) {
-        Ok(repo) => repo,
-        Err(e) => {
-            eprintln!("failed to open git repo: {:?}", e);
-            return Err(PassrsError::FailedToOpenGitRepo.into());
-        }
-    };
+    let repo = Repository::open(path)?;
 
     Ok(repo)
 }
@@ -370,7 +414,7 @@ where
         ctx.sign(SignMode::Detached, &*buf, &mut outbuf)?;
 
         let contents = buf.as_str().with_context(|| "Buffer was not valid UTF-8")?;
-        let out = std::str::from_utf8(&outbuf)?;
+        let out = str::from_utf8(&outbuf)?;
         let commit = repo.commit_signed(&contents, &out, Some("gpgsig"))?;
 
         // NOTE: also implemented here: subcmds/init.rs
@@ -401,10 +445,22 @@ where
     Q: AsRef<Path>,
 {
     let source = source.as_ref();
-    let id = uid(source)?;
+    let dest = dest.as_ref();
+    let id = self::uid(source)?;
     let meta = source.metadata()?;
 
+    // /home/vin/.password-store/Uncategorized/rclone
+    // mkdir: created directory '/home/vin/.password-store/rclone'
+    // '/home/vin/.password-store/Uncategorized/rclone' -> '/home/vin/.password-store/rclone/lmbo'
+    // '/home/vin/.password-store/Uncategorized/rclone/password.gpg' -> '/home/vin/.password-store/rclone/lmbo/password.gpg'
+
     if meta.is_file() {
+        match fs::metadata(&dest) {
+            Ok(_) => {}
+            Err(_) => self::create_descending_dirs(&dest)?,
+        }
+
+        // println!("'{}' -> '{}'", &source.display(), &dest.display());
         fs::copy(source, dest)?;
     } else if meta.is_dir() {
         if root.is_some() && root.unwrap() == id {
@@ -412,20 +468,22 @@ where
         }
 
         fs::create_dir_all(dest)?;
+        // println!("created directory {}", &dest.display());
 
         if root.is_none() {
-            root = Some(uid(&dest.as_ref())?);
+            root = Some(self::uid(&dest)?);
         }
 
+        // println!("'{}' -> '{}'", &source.display(), &dest.display());
         for entry in fs::read_dir(source)? {
             let entry = entry?.path();
             let name = entry.file_name().unwrap();
-            copy(&entry, &dest.as_ref().join(name), root)?;
+            self::copy(&entry, &dest.join(name), root)?;
         }
 
         fs::set_permissions(dest, meta.permissions())?;
     } else {
-        // unknown type
+        // not file or dir
     }
 
     Ok(())
@@ -448,101 +506,86 @@ where
     Ok(password_bytes)
 }
 
-// TODO: research licensing
-// re: https://github.com/mdunsmuir/copy_dir/blob/0.1.2/src/lib.rs#L67
-// fn copy_dir<Q: AsRef<Path>, P: AsRef<Path>>(from: P, to: Q) -> Result<()> {
-//     if !from.as_ref().exists() {
-//         return Err(std::io::Error::new(
-//             std::io::ErrorKind::NotFound,
-//             "source path does not exist",
-//         )
-//         .into());
-//     } else if to.as_ref().exists() {
-//         return Err(
-//             std::io::Error::new(std::io::ErrorKind::AlreadyExists, "target path exists").into(),
-//         );
-//     }
+pub fn prompt_for_secret<S>(echo: bool, secret_name: S) -> Result<Option<String>>
+where
+    S: AsRef<str>,
+{
+    let secret_name = secret_name.as_ref();
 
-//     if from.as_ref().is_file() {
-//         fs::copy(&from, &to)?;
-//     }
+    let stdin = io::stdin();
+    let mut stdin = stdin.lock();
+    let stdout = io::stdout();
+    let mut stdout = stdout.lock();
 
-//     // Allows us to make this generic over files AND dirs
-//     if !from.as_ref().is_file() {
-//         fs::create_dir(&to)?;
-//     }
+    let secret = if echo {
+        write!(stdout, "Enter secret for {}: ", secret_name)?;
+        io::stdout().flush()?;
+        let input = TermRead::read_line(&mut stdin)?;
 
-//     let target_is_under_source = from
-//         .as_ref()
-//         .canonicalize()
-//         .and_then(|fc| to.as_ref().canonicalize().map(|tc| (fc, tc)))
-//         .map(|(fc, tc)| tc.starts_with(fc))?;
+        if input.is_none() {
+            return Err(PassrsError::UserAbort.into());
+        }
 
-//     if target_is_under_source {
-//         fs::remove_dir(&to)?;
+        input
+    } else {
+        write!(stdout, "Enter secret for {}: ", secret_name)?;
+        io::stdout().flush()?;
+        let input = {
+            let input = stdin.read_passwd(&mut stdout)?;
+            writeln!(stdout)?;
+            if input.is_none() {
+                return Err(PassrsError::UserAbort.into());
+            }
 
-//         return Err(std::io::Error::new(
-//             std::io::ErrorKind::Other,
-//             "cannot copy to a path prefixed by the source path",
-//         )
-//         .into());
-//     }
+            input.unwrap()
+        };
 
-//     for entry in WalkDir::new(&from)
-//         .min_depth(1)
-//         .into_iter()
-//         .filter_map(|e| e.ok())
-//     {
-//         let relative_path = match entry.path().strip_prefix(&from) {
-//             Ok(rp) => rp,
-//             Err(_) => panic!("strip_prefix failed; this is a probably a bug in copy_dir"),
-//         };
+        write!(stdout, "Re-enter secret for {}: ", secret_name)?;
+        io::stdout().flush()?;
+        let check = {
+            let input = stdin.read_passwd(&mut stdout)?;
+            writeln!(stdout)?;
+            if input.is_none() {
+                return Err(PassrsError::UserAbort.into());
+            }
 
-//         let target_path = {
-//             let mut target_path = to.as_ref().to_path_buf();
-//             target_path.push(relative_path);
-//             target_path
-//         };
+            input.unwrap()
+        };
 
-//         let source_metadata = match entry.metadata() {
-//             Err(_) => continue,
-//             Ok(md) => md,
-//         };
+        if input == check {
+            Some(input)
+        } else {
+            return Err(PassrsError::SecretsDontMatch.into());
+        }
+    };
 
-//         if source_metadata.is_dir() {
-//             fs::create_dir(&target_path)?;
-//             fs::set_permissions(&target_path, source_metadata.permissions())?;
-//         } else {
-//             fs::copy(entry.path(), &target_path)?;
-//         }
-//     }
+    Ok(secret)
+}
 
-//     Ok(())
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
+    #[test]
+    fn canonicalize_tester() {
+        let paths = [
+            "Internet/amazon.com/password.gpg",
+            "~/.password-store/Internet/amazon.com/password.gpg",
+            &format!(
+                "{}/.password-store/Internet/amazon.com/password.gpg",
+                env::var("HOME").unwrap()
+            ),
+        ];
 
-//     #[test]
-//     fn canonicalize_tester() {
-//         let paths = [
-//             "Internet/amazon.com/password.gpg",
-//             "~/.password-store/Internet/amazon.com/password.gpg",
-//             &format!(
-//                 "{}/.password-store/Internet/amazon.com/password.gpg",
-//                 std::env::var("HOME").unwrap()
-//             ),
-//         ];
-
-//         for path in &paths {
-//             assert_eq!(
-//                 canonicalize_path(path).unwrap().display().to_owned(),
-//                 format!(
-//                     "{}/.password-store/Internet/amazon.com/password.gpg",
-//                     std::env::var("HOME").unwrap()
-//                 )
-//             );
-//         }
-//     }
-// }
+        for path in &paths {
+            assert_eq!(
+                canonicalize_path(path).unwrap().display().to_string(),
+                format!(
+                    "{}/.password-store/Internet/amazon.com/password.gpg",
+                    env::var("HOME").unwrap()
+                )
+            );
+        }
+    }
+}

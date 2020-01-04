@@ -2,9 +2,10 @@ use std::fmt::{self, Display};
 use std::fs;
 use std::path::PathBuf;
 
+use anyhow::Result;
 use termion::{color, style};
 
-use crate::Result;
+use crate::consts::{PASSWORD_STORE_DIR, PASSWORD_STORE_NAME};
 
 const EDGE: &str = "├── ";
 const LINE: &str = "│   ";
@@ -97,11 +98,18 @@ impl Tree {
 
 impl Display for Tree {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = if self.0.display().to_string() == PASSWORD_STORE_DIR[..*PASSWORD_STORE_NAME] {
+            "Password Store"
+        } else {
+            self.0.file_name().unwrap().to_str().unwrap()
+        };
+
         if self.0.is_dir() {
             writeln!(
                 f,
                 "{bold}{blue}{}{reset}",
-                self.0.file_name().unwrap().to_str().unwrap(),
+                // self.0.file_name().unwrap().to_str().unwrap(),
+                name,
                 bold = style::Bold,
                 blue = color::Fg(color::Blue),
                 reset = style::Reset

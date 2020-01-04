@@ -1,6 +1,7 @@
+use anyhow::Result;
+
 use crate::consts::PASSWORD_STORE_DIR;
 use crate::tree;
-use crate::Result;
 
 pub fn ls(path: Option<String>) -> Result<()> {
     let root = if let Some(path) = path {

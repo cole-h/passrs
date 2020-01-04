@@ -1,25 +1,29 @@
 use std::fs;
 use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
+
+use anyhow::Result;
 use termion::input::TermRead;
 
 use crate::util;
 use crate::PassrsError;
-use crate::Result;
 
 pub fn mv(force: bool, source: String, dest: String) -> Result<()> {
     let source_path = util::canonicalize_path(&source)?;
-    let dest_path = util::canonicalize_path(&dest)?;
-
-    // TODO: find a better way to determine if the user neglected .gpg or not
     let is_file = match fs::metadata(&source_path) {
-        Ok(md) => md.is_file(),
+        Ok(meta) => meta.is_file(),
         Err(_) => false,
     };
 
-    let stdin = std::io::stdin();
+    let dest_path = if is_file {
+        util::exact_path(&format!("{}.gpg", dest))?
+    } else {
+        util::exact_path(&dest)?
+    };
+
+    let stdin = io::stdin();
     let mut stdin = stdin.lock();
-    let stdout = std::io::stdout();
+    let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
     if is_file {
@@ -39,7 +43,7 @@ pub fn mv(force: bool, source: String, dest: String) -> Result<()> {
                 Some(reply)
                     if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
                 {
-                    std::fs::OpenOptions::new()
+                    fs::OpenOptions::new()
                         .mode(0o600)
                         .write(true)
                         .truncate(true)
@@ -49,10 +53,9 @@ pub fn mv(force: bool, source: String, dest: String) -> Result<()> {
             }
         }
 
-        // Rather than reinventing the wheel, just copy source -> dest and
-        // delete source file
+        // Copy file from source_path to dest_path
         util::copy(&source_path, &dest_path, None)?;
-        fs::remove_file(&source_path)?;
+        fs::remove_dir_all(&source_path)?;
     } else {
         if !util::path_exists(&source_path)? {
             return Err(PassrsError::PathDoesntExist(source).into());
@@ -70,15 +73,14 @@ pub fn mv(force: bool, source: String, dest: String) -> Result<()> {
                 Some(reply)
                     if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
                 {
-                    // `rm -rf` the destination because the user said yes
+                    // destination is a dir, `rm -rf` it
                     fs::remove_dir_all(&dest_path)?;
                 }
                 _ => return Err(PassrsError::UserAbort.into()),
             }
         }
 
-        // Rather than reinventing the wheel, recursively copy source -> dest
-        // and delete source dir
+        // Recursively copy folder from source_path to dest_path
         util::copy(&source_path, &dest_path, None)?;
         fs::remove_dir_all(&source_path)?;
     }

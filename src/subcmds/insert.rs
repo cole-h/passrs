@@ -1,20 +1,21 @@
+use std::fs;
 use std::io::{self, BufRead, Write};
 use std::os::unix::fs::OpenOptionsExt;
 
+use anyhow::Result;
 use termion::input::TermRead;
 
 use crate::util;
 use crate::PassrsError;
-use crate::Result;
 
 pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Result<()> {
     let path = util::canonicalize_path(&pass_name)?;
 
     util::create_descending_dirs(&path)?;
 
-    let stdin = std::io::stdin();
+    let stdin = io::stdin();
     let mut stdin = stdin.lock();
-    let stdout = std::io::stdout();
+    let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
     if !force && util::path_exists(&path)? {
@@ -29,7 +30,7 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Re
             Some(reply)
                 if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
             {
-                std::fs::OpenOptions::new()
+                fs::OpenOptions::new()
                     .mode(0o600)
                     .write(true)
                     .truncate(true)
@@ -42,7 +43,7 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Re
     let password = if echo {
         write!(stdout, "Enter secret for {}: ", pass_name)?;
         io::stdout().flush()?;
-        let input = stdin.read_passwd(&mut stdout)?;
+        let input = TermRead::read_line(&mut stdin)?;
 
         if input.is_none() {
             return Err(PassrsError::UserAbort.into());
@@ -67,30 +68,30 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Re
         io::stdout().flush()?;
         let input = {
             let input = stdin.read_passwd(&mut stdout)?;
+            writeln!(stdout)?;
             if input.is_none() {
                 return Err(PassrsError::UserAbort.into());
             }
 
             input.unwrap()
         };
-        writeln!(stdout)?;
 
         write!(stdout, "Re-enter secret for {}: ", pass_name)?;
         io::stdout().flush()?;
         let check = {
             let input = stdin.read_passwd(&mut stdout)?;
+            writeln!(stdout)?;
             if input.is_none() {
                 return Err(PassrsError::UserAbort.into());
             }
 
             input.unwrap()
         };
-        writeln!(stdout)?;
 
         if input == check {
             Some(input)
         } else {
-            return Err(PassrsError::PasswordsDontMatch.into());
+            return Err(PassrsError::SecretsDontMatch.into());
         }
     };
 

@@ -1,15 +1,15 @@
 use std::fs::File;
 use std::io::Write;
 
-use anyhow::Context;
+use anyhow::{Context, Result};
 use qrcode::render::svg;
 use qrcode::QrCode;
 
 use crate::clipboard;
 use crate::ui::{self, UiResult};
 use crate::util;
-use crate::Result;
 
+// TODO ?
 pub fn uri(clip: bool, qrcode: Option<String>, pass_name: String) -> Result<()> {
     let file = ui::display_matches_for_target(&pass_name)?;
 

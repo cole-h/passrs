@@ -1,12 +1,11 @@
-use anyhow::Context;
-
 use std::env;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use anyhow::{Context, Result};
+
 use crate::consts::PASSWORD_STORE_X_SELECTION;
 use crate::PassrsError;
-use crate::Result;
 
 pub fn clip<S>(contents: S) -> Result<()>
 where

@@ -1,11 +1,10 @@
-use anyhow::Context;
+use anyhow::{Context, Result};
 
 use crate::clipboard;
 use crate::otp::{HOTPBuilder, HashAlgorithm, TOTPBuilder};
 use crate::subcmds::otp::validate;
 use crate::ui::{self, UiResult};
 use crate::util;
-use crate::Result;
 
 pub fn code(clip: bool, pass_name: String) -> Result<()> {
     let file = ui::display_matches_for_target(&pass_name)?;

@@ -1,6 +1,7 @@
-use std::io::Write;
+use std::env;
+use std::io::{self, Write};
 
-use anyhow::Context;
+use anyhow::{Context, Result};
 use termion::event::Key;
 use termion::input::MouseTerminal;
 use termion::raw::IntoRawMode;
@@ -17,7 +18,6 @@ use crate::consts::PASSWORD_STORE_DIR;
 use crate::event::{Event, Events};
 use crate::util;
 use crate::PassrsError;
-use crate::Result;
 
 pub enum UiResult {
     Success(String),
@@ -87,7 +87,7 @@ impl Ui {
 /// | ~~<s> to sync~~, <e> to edit, <ESC> to quit              |
 /// +----------------------------------------------------------+
 fn display_matches(matches: Vec<String>) -> Result<UiResult> {
-    let bin_path = std::env::current_exe()?;
+    let bin_path = env::current_exe()?;
     let binary_name = bin_path
         .file_name()
         .with_context(|| "Option did not contain a value.")?
@@ -99,7 +99,7 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
 
     // `terminal` gets dropped at the end of the scope, allowing stdout to work
     // as expected
-    let stdout = std::io::stdout().into_raw_mode()?;
+    let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
     let stdout = AlternateScreen::from(stdout);
     let backend = TermionBackend::new(stdout);
@@ -244,7 +244,7 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
 
     // drop terminal so we can use stdout as usual
     drop(terminal);
-    std::io::stdout().flush()?;
+    io::stdout().flush()?;
 
     // If user didn't select an entry with enter or right arrow, it was a cancellation
     if let Some(entry) = entry {

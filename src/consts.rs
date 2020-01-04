@@ -8,17 +8,6 @@ pub const ALPHA_UPPER: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"; // [:upper:]
 pub const ALPHA_LOWER: &[u8] = b"abcdefghijklmnopqrstuvwxyz"; // [:lower:]
 pub const SPECIAL: &[u8] = b"!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"; // [:punct:]
 
-// pub static VERSION: Lazy<String> = Lazy::new(|| {
-//     use structopt::clap::crate_version;
-
-//     let mut ver = crate_version!().to_owned();
-//     let commit_hash = env!("GIT_HASH");
-//     if commit_hash != "" {
-//         ver = format!("{} ({})", ver, commit_hash);
-//     }
-//     ver
-// });
-
 pub static VERSION: Lazy<String> = Lazy::new(|| {
     use structopt::clap::crate_version;
 
@@ -41,13 +30,24 @@ pub static EDITOR: Lazy<String> = Lazy::new(|| {
     }
 });
 // FIXME: remove in favor of PASSWORD_STORE_DIR (only used for debugging rn)
-pub static DEFAULT_STORE_PATH: Lazy<String> = Lazy::new(|| "/tmp/passrstest/".to_owned());
-// env::var("PASSWORD_STORE_DIR").unwrap_or_else(|_| format!("{}/.password-store/", *HOME));
+pub static DEFAULT_STORE_PATH: Lazy<String> = // Lazy::new(|| "/tmp/passrstest/".to_owned());
+Lazy::new(|| env::var("PASSWORD_STORE_DIR").unwrap_or_else(|_| format!("{}/.password-store/", *HOME)));
 pub static GPG_ID_FILE: Lazy<String> = Lazy::new(|| [&PASSWORD_STORE_DIR, ".gpg-id"].concat());
 pub static PASSRS_UNCLIP_HASH: Lazy<String> =
     Lazy::new(|| env::var("PASSRS_UNCLIP_HASH").unwrap_or_default());
 pub static PASSRS_GIT_BINARY: Lazy<String> =
     Lazy::new(|| env::var("PASSRS_GIT_BINARY").unwrap_or_else(|_| "/usr/bin/git".to_owned()));
+pub static PASSWORD_STORE_NAME: Lazy<usize> = Lazy::new(|| {
+    if let Some(idx) = PASSWORD_STORE_DIR.rfind('/') {
+        if idx < PASSWORD_STORE_DIR.len() - 1 {
+            PASSWORD_STORE_DIR.len()
+        } else {
+            idx
+        }
+    } else {
+        PASSWORD_STORE_DIR.len()
+    }
+});
 
 // pass(1)
 pub static PASSWORD_STORE_DIR: Lazy<String> =
@@ -72,7 +72,7 @@ pub static PASSWORD_STORE_CLIP_TIME: Lazy<String> =
     Lazy::new(|| env::var("PASSWORD_STORE_CLIP_TIME").unwrap_or_else(|_| "45".to_owned()));
 // TODO: unimplemented
 // pub static PASSWORD_STORE_UMASK: Lazy<String> =
-//     Lazy::new(|| env::var("PASSWORD_STORE_UMASK").unwrap_or_else(|_| "022".to_owned()));
+//     Lazy::new(|| env::var("PASSWORD_STORE_UMASK").unwrap_or_else(|_| "077".to_owned()));
 pub static PASSWORD_STORE_GENERATED_LENGTH: Lazy<usize> = Lazy::new(|| {
     env::var("PASSWORD_STORE_GENERATED_LENGTH")
         .unwrap_or_else(|_| "24".to_owned())
@@ -91,12 +91,10 @@ pub static PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS: Lazy<Vec<u8>> =
             Err(_) => [DIGITS, ALPHA_LOWER, ALPHA_UPPER].concat(),
         },
     );
-pub static PASSWORD_STORE_SIGNING_KEY: Lazy<String> = Lazy::new(|| {
-    env::var("PASSWORD_STORE_SIGNING_KEY").unwrap_or_else(|_| PASSWORD_STORE_KEY.to_owned())
-});
-// TODO: decided to say fuck it, remove this
-// pub static ref  GREP_OPTIONS: Vec<String> =
-//     env::var("GREPOPTIONS").unwrap_or_default().split(' ').map(ToOwned::to_owned).collect::<Vec<_>>();
+// TODO: If PASSWORD_STORE_SIGNING_KEY is set, sign every file with that key and
+// output to {filename}.sig
+pub static PASSWORD_STORE_SIGNING_KEY: Lazy<String> =
+    Lazy::new(|| env::var("PASSWORD_STORE_SIGNING_KEY").unwrap_or_default());
 
 // lazy_static::lazy_static! {
 //     pub static ref VERSION: String = {

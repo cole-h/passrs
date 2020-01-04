@@ -1,7 +1,8 @@
 use std::process::{Command, Stdio};
 
+use anyhow::Result;
+
 use crate::consts::{PASSRS_GIT_BINARY, PASSWORD_STORE_DIR};
-use crate::Result;
 
 pub fn git(args: Vec<String>) -> Result<()> {
     // TODO: generalize command spawning

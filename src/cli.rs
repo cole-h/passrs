@@ -1,8 +1,8 @@
+use anyhow::Result;
 use structopt::{clap::AppSettings, StructOpt};
 
 use crate::subcmds::*;
 use crate::util;
-use crate::Result;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -145,7 +145,7 @@ enum PassSub {
     },
     #[structopt(setting = AppSettings::Hidden)]
     #[doc(hidden)]
-    __Unexhaustive,
+    __Nonexhaustive,
 }
 
 /// For managing one-time-password (OTP) tokens with {{TODO: better exe name}}
@@ -173,13 +173,15 @@ enum Otp {
         echo: bool,
         #[structopt(required = true)]
         secret_name: String,
-        /// Assumes SHA1 algorithm, 30-second period, and 6 digits.
-        secret: Option<String>,
+        #[structopt(long, short = "s")]
+        /// Create an OTP URI from the provided secret. Assumes SHA1 algorithm,
+        /// 30-second period, and 6 digits.
+        from_secret: bool,
         /// One of SHA1, SHA256, or SHA512.
         algo: Option<String>,
         /// How often the OTP refreshes.
         period: Option<u32>,
-        /// The length of the OTP code.
+        /// The length of the generated OTP code.
         length: Option<usize>,
     },
     /// Append an OTP secret to pass-name.
@@ -189,8 +191,10 @@ enum Otp {
         echo: bool,
         #[structopt(required = true)]
         secret_name: String,
-        /// Assumes SHA1 algorithm, 30-second period, and 6 digits.
-        secret: Option<String>,
+        #[structopt(long, short = "s")]
+        /// Create an OTP URI from the provided secret. Assumes SHA1 algorithm,
+        /// 30-second period, and 6 digits.
+        from_secret: bool,
         /// One of SHA1, SHA256, or SHA512.
         algo: Option<String>,
         /// How often the OTP refreshes.
@@ -222,173 +226,170 @@ pub fn opt() -> Result<()> {
 
     // NOTE: committing is handled in any subcommand that may modify the store
     match matches.subcmd {
-        Some(sub) => {
-            match sub {
-                PassSub::Init { path, gpg_id } => {
-                    init::init(path, gpg_id)?;
-                }
-                PassSub::Ls { subfolder } => {
-                    util::verify_store_exists()?;
-                    ls::ls(subfolder)?;
-                }
-                PassSub::Find { secret_name } => {
-                    util::verify_store_exists()?;
-                    find::find(secret_name)?;
-                }
-                PassSub::Show { clip, secret_name } => {
-                    util::verify_store_exists()?;
-                    show::show(clip, secret_name)?;
-                }
-                PassSub::Grep { search_string } => {
-                    util::verify_store_exists()?;
-                    grep::grep(search_string)?;
-                }
-                PassSub::Insert {
-                    echo,
-                    multiline,
-                    force,
-                    secret_name,
-                } => {
-                    #[cfg(not(debug_assertions))]
-                    panic!(
+        Some(sub) => match sub {
+            PassSub::Init { path, gpg_id } => {
+                init::init(path, gpg_id)?;
+            }
+            PassSub::Ls { subfolder } => {
+                util::verify_store_exists()?;
+                ls::ls(subfolder)?;
+            }
+            PassSub::Find { secret_name } => {
+                util::verify_store_exists()?;
+                find::find(secret_name)?;
+            }
+            PassSub::Show { clip, secret_name } => {
+                util::verify_store_exists()?;
+                show::show(clip, secret_name)?;
+            }
+            PassSub::Grep { search_string } => {
+                util::verify_store_exists()?;
+                grep::grep(search_string)?;
+            }
+            PassSub::Insert {
+                echo,
+                multiline,
+                force,
+                secret_name,
+            } => {
+                #[cfg(not(debug_assertions))]
+                panic!(
                         "Functions that may modify the store are currently disabled for safety reasons."
                     );
-                    util::verify_store_exists()?;
-                    insert::insert(echo, multiline, force, secret_name)?;
-                }
-                // TODO: PassSub::Append { echo, multiline, secret_name } => {}
-                PassSub::Edit { secret_name } => {
-                    #[cfg(not(debug_assertions))]
-                    panic!(
+                util::verify_store_exists()?;
+                insert::insert(echo, multiline, force, secret_name)?;
+            }
+            PassSub::Edit { secret_name } => {
+                #[cfg(not(debug_assertions))]
+                panic!(
                         "Functions that may modify the store are currently disabled for safety reasons."
                     );
-                    util::verify_store_exists()?;
-                    edit::edit(secret_name)?;
-                }
-                PassSub::Generate {
+                util::verify_store_exists()?;
+                edit::edit(secret_name)?;
+            }
+            PassSub::Generate {
+                no_symbols,
+                clip,
+                in_place,
+                force,
+                secret_name,
+                secret_length,
+            } => {
+                #[cfg(not(debug_assertions))]
+                panic!(
+                        "Functions that may modify the store are currently disabled for safety reasons."
+                    );
+                util::verify_store_exists()?;
+                generate::generate(
                     no_symbols,
                     clip,
                     in_place,
                     force,
                     secret_name,
                     secret_length,
-                } => {
-                    #[cfg(not(debug_assertions))]
-                    panic!(
+                )?;
+            }
+            PassSub::Rm {
+                recursive,
+                force,
+                secret_name,
+            } => {
+                #[cfg(not(debug_assertions))]
+                panic!(
                         "Functions that may modify the store are currently disabled for safety reasons."
                     );
-                    util::verify_store_exists()?;
-                    generate::generate(
-                        no_symbols,
-                        clip,
-                        in_place,
+                util::verify_store_exists()?;
+                rm::rm(recursive, force, secret_name)?;
+            }
+            PassSub::Mv {
+                force,
+                old_path,
+                new_path,
+            } => {
+                #[cfg(not(debug_assertions))]
+                panic!(
+                        "Functions that may modify the store are currently disabled for safety reasons."
+                    );
+                util::verify_store_exists()?;
+                mv::mv(force, old_path, new_path)?;
+            }
+            PassSub::Cp {
+                force,
+                old_path,
+                new_path,
+            } => {
+                #[cfg(not(debug_assertions))]
+                panic!(
+                        "Functions that may modify the store are currently disabled for safety reasons."
+                    );
+                util::verify_store_exists()?;
+                cp::cp(force, old_path, new_path)?;
+            }
+            PassSub::Git { git_command_args } => {
+                util::verify_store_exists()?;
+                git::git(git_command_args)?;
+            }
+            PassSub::Unclip { timeout, force } => {
+                util::verify_store_exists()?;
+                unclip::unclip(timeout, force)?;
+            }
+            #[cfg(feature = "otp")]
+            PassSub::Otp(otp) => {
+                use crate::subcmds::otp::*;
+                match otp {
+                    Otp::Code { clip, secret_name } => {
+                        util::verify_store_exists()?;
+                        code::code(clip, secret_name)?;
+                    }
+                    Otp::Insert {
                         force,
+                        echo,
                         secret_name,
-                        secret_length,
-                    )?;
-                }
-                PassSub::Rm {
-                    recursive,
-                    force,
-                    secret_name,
-                } => {
-                    #[cfg(not(debug_assertions))]
-                    panic!(
-                        "Functions that may modify the store are currently disabled for safety reasons."
-                    );
-                    util::verify_store_exists()?;
-                    rm::rm(recursive, force, secret_name)?;
-                }
-                PassSub::Mv {
-                    force,
-                    old_path,
-                    new_path,
-                } => {
-                    #[cfg(not(debug_assertions))]
-                    panic!(
-                        "Functions that may modify the store are currently disabled for safety reasons."
-                    );
-                    util::verify_store_exists()?;
-                    mv::mv(force, old_path, new_path)?;
-                }
-                PassSub::Cp {
-                    force,
-                    old_path,
-                    new_path,
-                } => {
-                    #[cfg(not(debug_assertions))]
-                    panic!(
-                        "Functions that may modify the store are currently disabled for safety reasons."
-                    );
-                    util::verify_store_exists()?;
-                    cp::cp(force, old_path, new_path)?;
-                }
-                PassSub::Git { git_command_args } => {
-                    util::verify_store_exists()?;
-                    git::git(git_command_args)?;
-                }
-                PassSub::Unclip { timeout, force } => {
-                    util::verify_store_exists()?;
-                    unclip::unclip(timeout, force)?;
-                }
-                #[cfg(feature = "otp")]
-                PassSub::Otp(otp) => {
-                    use crate::subcmds::otp::*;
-                    match otp {
-                        Otp::Code { clip, secret_name } => {
-                            util::verify_store_exists()?;
-                            code::code(clip, secret_name)?;
-                        }
-                        Otp::Insert {
-                            force,
-                            echo,
-                            secret_name,
-                            secret,
-                            algo,
-                            period,
-                            length,
-                        } => {
-                            #[cfg(not(debug_assertions))]
-                            panic!(
+                        from_secret,
+                        algo,
+                        period,
+                        length,
+                    } => {
+                        #[cfg(not(debug_assertions))]
+                        panic!(
                                 "Functions that may modify the store are currently disabled for safety reasons."
                             );
-                            let _ = (algo, period, length);
-                            util::verify_store_exists()?;
-                            insert::insert(force, echo, secret_name, secret)?;
-                        }
-                        Otp::Append {
-                            echo,
-                            secret_name,
-                            secret,
-                            algo,
-                            period,
-                            length,
-                        } => {
-                            #[cfg(not(debug_assertions))]
-                            panic!(
+                        let _ = (algo, period, length);
+                        util::verify_store_exists()?;
+                        insert::insert(force, echo, secret_name, from_secret)?;
+                    }
+                    Otp::Append {
+                        echo,
+                        secret_name,
+                        from_secret,
+                        algo,
+                        period,
+                        length,
+                    } => {
+                        #[cfg(not(debug_assertions))]
+                        panic!(
                                 "Functions that may modify the store are currently disabled for safety reasons."
                             );
-                            let _ = (algo, period, length);
-                            util::verify_store_exists()?;
-                            append::append(echo, secret_name, secret)?;
-                        }
-                        Otp::Uri {
-                            clip,
-                            qrcode,
-                            secret_name,
-                        } => {
-                            util::verify_store_exists()?;
-                            uri::uri(clip, qrcode, secret_name)?;
-                        }
-                        Otp::Validate { uri } => {
-                            util::verify_store_exists()?;
-                            validate::validate(uri)?;
-                        }
+                        let _ = (algo, period, length);
+                        util::verify_store_exists()?;
+                        append::append(echo, secret_name, from_secret)?;
+                    }
+                    Otp::Uri {
+                        clip,
+                        qrcode,
+                        secret_name,
+                    } => {
+                        util::verify_store_exists()?;
+                        uri::uri(clip, qrcode, secret_name)?;
+                    }
+                    Otp::Validate { uri } => {
+                        util::verify_store_exists()?;
+                        validate::validate(uri)?;
                     }
                 }
-                _ => {}
             }
-        }
+            _ => {}
+        },
         // If no command is specified, `ls` the entire password store, like
         // `pass` does
         None => {

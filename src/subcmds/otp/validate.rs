@@ -1,10 +1,10 @@
-use anyhow::Context;
+use anyhow::{Context, Result};
+use data_encoding::BASE32_NOPAD;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::otp::HashAlgorithm;
 use crate::PassrsError;
-use crate::Result;
 
 const SCHEME: &str = "otpauth://";
 const OTP_TYPE: &str = "(?P<type>totp|hotp)/";
@@ -15,33 +15,42 @@ const ALGORITHM: &str = "(?:&algorithm=(?P<algorithm>[^&#]*))?";
 const DIGITS: &str = "(?:&digits=(?P<digits>[^&#]*))?";
 const PERIOD: &str = "(?:&period=(?P<period>[^&#]*))?";
 
-static URI_PATTERN: Lazy<String> = Lazy::new(|| {
-    [
-        SCHEME, OTP_TYPE, LABEL, SECRET, ISSUER, ALGORITHM, DIGITS, PERIOD,
-    ]
-    .concat()
+static URI_REGEX: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        &[
+            SCHEME, OTP_TYPE, LABEL, SECRET, ISSUER, ALGORITHM, DIGITS, PERIOD,
+        ]
+        .concat(),
+    )
+    .unwrap()
 });
 
 pub fn validate<S>(uri: S) -> Result<()>
 where
-    S: Into<String>,
+    S: AsRef<str>,
 {
-    let re = Regex::new(&URI_PATTERN)?;
-    let uri = uri.into();
+    let re = &URI_REGEX;
+    let uri = uri.as_ref();
 
-    if re.is_match(&uri) {
-        return Ok(());
+    // if secret is not base32, error
+    if let Ok(secret) = self::get_base32_secret(&uri) {
+        if let Err(err) = BASE32_NOPAD.decode(&secret.as_bytes()) {
+            return Err(PassrsError::InvalidKeyUri.into());
+        }
+    }
+    if !re.is_match(&uri) {
+        return Err(PassrsError::InvalidKeyUri.into());
     }
 
-    Err(PassrsError::InvalidKeyUri.into())
+    Ok(())
 }
 
 pub fn get_base32_secret<S>(uri: S) -> Result<String>
 where
-    S: Into<String>,
+    S: AsRef<str>,
 {
-    let re = Regex::new(&URI_PATTERN)?;
-    let uri = uri.into();
+    let re = &URI_REGEX;
+    let uri = uri.as_ref();
 
     let captures = re
         .captures(&uri)
@@ -57,10 +66,10 @@ where
 
 pub fn get_period<S>(uri: S) -> Result<u64>
 where
-    S: Into<String>,
+    S: AsRef<str>,
 {
-    let re = Regex::new(&URI_PATTERN)?;
-    let uri = uri.into();
+    let re = &URI_REGEX;
+    let uri = uri.as_ref();
 
     let captures = re
         .captures(&uri)
@@ -75,10 +84,10 @@ where
 
 pub fn get_digits<S>(uri: S) -> Result<usize>
 where
-    S: Into<String>,
+    S: AsRef<str>,
 {
-    let re = Regex::new(&URI_PATTERN)?;
-    let uri = uri.into();
+    let re = &URI_REGEX;
+    let uri = uri.as_ref();
 
     let captures = re
         .captures(&uri)
@@ -94,10 +103,10 @@ where
 #[allow(deprecated)]
 pub fn get_algorithm<S>(uri: S) -> Result<HashAlgorithm>
 where
-    S: Into<String>,
+    S: AsRef<str>,
 {
-    let re = Regex::new(&URI_PATTERN)?;
-    let uri = uri.into();
+    let re = &URI_REGEX;
+    let uri = uri.as_ref();
 
     let captures = re
         .captures(&uri)

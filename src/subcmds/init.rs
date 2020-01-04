@@ -3,15 +3,15 @@ use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
+use std::str;
 
-use anyhow::Context as _;
+use anyhow::{Context as _, Result};
 use git2::Repository;
 use gpgme::{Context, Data, Protocol, SignMode};
 
 use crate::consts::{PASSWORD_STORE_DIR, PASSWORD_STORE_SIGNING_KEY};
 use crate::util;
 use crate::PassrsError;
-use crate::Result;
 
 pub fn init(path: Option<String>, keys: Vec<String>) -> Result<()> {
     let keys = if keys.is_empty() {
@@ -162,7 +162,7 @@ where
     let mut cipher = Vec::new();
     let mut file = OpenOptions::new().mode(0o600).write(true).open(file)?;
 
-    ctx.encrypt(keys.iter(), &plain, &mut cipher)?;
+    ctx.encrypt(&keys, &plain, &mut cipher)?;
     file.write_all(&cipher)?;
 
     Ok(())
@@ -185,7 +185,6 @@ where
     let mut file = fs::OpenOptions::new()
         .mode(0o600)
         .truncate(true)
-        .read(true)
         .write(true)
         .create(true)
         .open(&gpg_id_path)?;
@@ -197,7 +196,6 @@ where
     let mut file = fs::OpenOptions::new()
         .mode(0o600)
         .truncate(true)
-        .read(true)
         .write(true)
         .create(true)
         .open(&gpg_id_signature)?;
@@ -319,13 +317,13 @@ where
             &repo.find_tree(tree_id)?,
             &parents,
         )?;
-        let contents = std::str::from_utf8(&buf)?.to_string();
+        let contents = str::from_utf8(&buf)?.to_string();
         let mut outbuf = Vec::new();
 
         ctx.set_armor(true);
         ctx.sign(SignMode::Detached, &*buf, &mut outbuf)?;
 
-        let out = std::str::from_utf8(&outbuf)?;
+        let out = str::from_utf8(&outbuf)?;
         let commit = repo.commit_signed(&contents, &out, Some("gpgsig"))?;
 
         // TODO: verify there are no side-effects to this
@@ -380,13 +378,13 @@ where
             &repo.find_tree(tree_id)?,
             &parents,
         )?;
-        let contents = std::str::from_utf8(&buf)?.to_string();
+        let contents = str::from_utf8(&buf)?.to_string();
         let mut outbuf = Vec::new();
 
         ctx.set_armor(true);
         ctx.sign(SignMode::Detached, &*buf, &mut outbuf)?;
 
-        let out = std::str::from_utf8(&outbuf)?;
+        let out = str::from_utf8(&outbuf)?;
         let commit = repo.commit_signed(&contents, &out, Some("gpgsig"))?;
 
         // TODO: verify there are no side-effects to this

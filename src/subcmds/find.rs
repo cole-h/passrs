@@ -1,7 +1,8 @@
+use anyhow::Result;
+
 use crate::consts::PASSWORD_STORE_DIR;
 use crate::util;
 use crate::PassrsError;
-use crate::Result;
 
 pub fn find(name: String) -> Result<()> {
     let matches = util::find_target_single(&name)?;

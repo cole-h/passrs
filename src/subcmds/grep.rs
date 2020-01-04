@@ -1,4 +1,6 @@
-use anyhow::Context;
+use std::io;
+
+use anyhow::{Context, Result};
 use grep_printer::{ColorSpecs, StandardBuilder};
 use grep_regex::RegexMatcher;
 use grep_searcher::{BinaryDetection, SearcherBuilder};
@@ -8,7 +10,6 @@ use walkdir::WalkDir;
 
 use crate::consts::{HOME, PASSWORD_STORE_DIR};
 use crate::util;
-use crate::Result;
 
 // Takes ~40 seconds to search the entirety of my ~400 file store
 pub fn grep(search: String) -> Result<()> {
@@ -59,6 +60,7 @@ pub fn grep(search: String) -> Result<()> {
             continue;
         }
 
+        // I want path[..separator] to include the final slash, so add 1
         let separator = path
             .rfind('/')
             .with_context(|| "Path did not contain a folder")?
@@ -87,9 +89,9 @@ enum StandardStreamKind {
     BlockBuffered(termcolor::BufferedStandardStream),
 }
 
-impl std::io::Write for StandardStreamKind {
+impl io::Write for StandardStreamKind {
     #[inline]
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         match self {
             StandardStreamKind::LineBuffered(ref mut w) => w.write(buf),
             StandardStreamKind::BlockBuffered(ref mut w) => w.write(buf),
@@ -97,7 +99,7 @@ impl std::io::Write for StandardStreamKind {
     }
 
     #[inline]
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> io::Result<()> {
         match self {
             StandardStreamKind::LineBuffered(ref mut w) => w.flush(),
             StandardStreamKind::BlockBuffered(ref mut w) => w.flush(),
@@ -115,7 +117,7 @@ impl termcolor::WriteColor for StandardStreamKind {
     }
 
     #[inline]
-    fn set_color(&mut self, spec: &termcolor::ColorSpec) -> std::io::Result<()> {
+    fn set_color(&mut self, spec: &termcolor::ColorSpec) -> io::Result<()> {
         match self {
             StandardStreamKind::LineBuffered(ref mut w) => w.set_color(spec),
             StandardStreamKind::BlockBuffered(ref mut w) => w.set_color(spec),
@@ -123,7 +125,7 @@ impl termcolor::WriteColor for StandardStreamKind {
     }
 
     #[inline]
-    fn reset(&mut self) -> std::io::Result<()> {
+    fn reset(&mut self) -> io::Result<()> {
         match self {
             StandardStreamKind::LineBuffered(ref mut w) => w.reset(),
             StandardStreamKind::BlockBuffered(ref mut w) => w.reset(),

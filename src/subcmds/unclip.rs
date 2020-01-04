@@ -1,12 +1,15 @@
 use std::process::Command;
+use std::str;
+use std::thread;
+use std::time;
 
+use anyhow::Result;
 use data_encoding::HEXLOWER;
 use ring::digest;
 
 use crate::clipboard;
 use crate::consts::PASSRS_UNCLIP_HASH;
 use crate::PassrsError;
-use crate::Result;
 
 pub fn unclip(timeout: u64, force: bool) -> Result<()> {
     if *PASSRS_UNCLIP_HASH == "" {
@@ -20,18 +23,17 @@ pub fn unclip(timeout: u64, force: bool) -> Result<()> {
     }
 
     let password_bytes = clipboard::paste()?;
-    let password = std::str::from_utf8(&password_bytes)?;
+    let password = str::from_utf8(&password_bytes)?;
     let password_hash =
         HEXLOWER.encode(digest::digest(&digest::SHA256, password.as_bytes()).as_ref());
 
-    if password_hash != *PASSRS_UNCLIP_HASH && !force {
+    if !(password_hash == *PASSRS_UNCLIP_HASH || force) {
         Command::new("wl-copy").arg("--clear").spawn()?;
         return Err(PassrsError::HashMismatch(password_hash, PASSRS_UNCLIP_HASH.to_owned()).into());
     }
 
-    std::thread::sleep(std::time::Duration::from_secs(timeout));
+    thread::sleep(time::Duration::from_secs(timeout));
 
-    // TODO: clipboard utils
     Command::new("wl-copy").arg("--clear").spawn()?;
 
     Ok(())

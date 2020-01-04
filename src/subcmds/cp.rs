@@ -1,24 +1,29 @@
 use std::fs;
 use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
+
+use anyhow::Result;
 use termion::input::TermRead;
 
 use crate::util;
 use crate::PassrsError;
-use crate::Result;
 
 pub fn cp(force: bool, source: String, dest: String) -> Result<()> {
     let source_path = util::canonicalize_path(&source)?;
-    let dest_path = util::canonicalize_path(&dest)?;
-
     let is_file = match fs::metadata(&source_path) {
-        Ok(md) => md.is_file(),
+        Ok(meta) => meta.is_file(),
         Err(_) => false,
     };
 
-    let stdin = std::io::stdin();
+    let dest_path = if is_file {
+        util::exact_path(&format!("{}.gpg", dest))?
+    } else {
+        util::exact_path(&dest)?
+    };
+
+    let stdin = io::stdin();
     let mut stdin = stdin.lock();
-    let stdout = std::io::stdout();
+    let stdout = io::stdout();
     let mut stdout = stdout.lock();
 
     if is_file {
@@ -38,7 +43,7 @@ pub fn cp(force: bool, source: String, dest: String) -> Result<()> {
                 Some(reply)
                     if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
                 {
-                    std::fs::OpenOptions::new()
+                    fs::OpenOptions::new()
                         .mode(0o600)
                         .write(true)
                         .truncate(true)

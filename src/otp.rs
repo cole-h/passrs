@@ -1,9 +1,9 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use anyhow::Result;
 use data_encoding::BASE32_NOPAD;
 use data_encoding::HEXLOWER_PERMISSIVE;
 use ring::hmac;
-use std::time::{SystemTime, UNIX_EPOCH};
-
-use crate::Result;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum HashAlgorithm {
