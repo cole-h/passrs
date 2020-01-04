@@ -35,6 +35,7 @@ pub fn unclip(timeout: u64, force: bool) -> Result<()> {
     thread::sleep(time::Duration::from_secs(timeout));
 
     Command::new("wl-copy").arg("--clear").spawn()?;
+    // TODO: notify that clipboard was cleared
 
     Ok(())
 }

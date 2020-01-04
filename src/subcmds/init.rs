@@ -9,15 +9,15 @@ use anyhow::{Context as _, Result};
 use git2::Repository;
 use gpgme::{Context, Data, Protocol, SignMode};
 
-use crate::consts::{PASSWORD_STORE_DIR, PASSWORD_STORE_SIGNING_KEY};
+use crate::consts::{PASSWORD_STORE_DIR, PASSWORD_STORE_KEY};
 use crate::util;
 use crate::PassrsError;
 
 pub fn init(path: Option<String>, keys: Vec<String>) -> Result<()> {
     let keys = if keys.is_empty() {
-        vec![PASSWORD_STORE_SIGNING_KEY.to_owned()]
+        &*PASSWORD_STORE_KEY
     } else {
-        keys
+        &keys
     };
     let store = PASSWORD_STORE_DIR.to_owned();
 
@@ -136,6 +136,7 @@ where
     Ok(())
 }
 
+// TODO: if signing_key present, resign with that
 fn recrypt_file<S, V>(file: S, keys: V) -> Result<()>
 where
     S: AsRef<Path>,
@@ -290,6 +291,7 @@ where
 
     match fs::metadata(&path) {
         Ok(_) => {}
+        // TODO: set permissions according to PASSWORD_STORE_UMASK
         Err(_) => fs::create_dir_all(&path)?,
     }
 
@@ -352,6 +354,7 @@ where
 
     match fs::metadata(&path) {
         Ok(_) => {}
+        // TODO: set permissions according to PASSWORD_STORE_UMASK
         Err(_) => fs::create_dir_all(&path)?,
     }
 

@@ -198,6 +198,7 @@ pub fn decrypt_file_into_strings<S>(file: S) -> Result<Vec<String>>
 where
     S: AsRef<str>,
 {
+    // TODO: verify signature (if it exists) -- {file}.sig
     let file = file.as_ref();
 
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
@@ -216,7 +217,9 @@ pub fn decrypt_file_into_bytes<S>(file: S) -> Result<Vec<u8>>
 where
     S: AsRef<Path>,
 {
+    // TODO: verify signature (if it exists) -- {file}.sig
     let file = file.as_ref();
+
     let mut bytes = Vec::new();
     let mut file = fs::File::open(file)?;
     file.read_to_end(&mut bytes)?;
@@ -241,16 +244,23 @@ where
         .with_context(|| format!("No folder found in file {}", file))?;
     let dir = &file[..sep];
     fs::create_dir_all(dir)?;
+    // TODO: set permissions according to PASSWORD_STORE_UMASK
 
     Ok(())
 }
 
-/// Encrypts data (a slice of bytes) using PASSWORD_STORE_SIGNING_KEY,
-/// PASSWORD_STORE_KEY, or the key listed in `.gpg-id`, as the fallback path.
-/// Callers must verify that `PASSWORD_STORE_DIR` exists and is initialized
-/// (usually by verifying the `.gpg-id` file exists and a `git` repo has been
-/// initialized).
-pub fn encrypt_bytes_into_file<S>(plain: &[u8], path: S) -> Result<()>
+// TODO: better names
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileMode {
+    Clobber,
+    Append,
+}
+
+/// Encrypts data (a slice of bytes) PASSWORD_STORE_KEY or the key(s) listed in
+/// `.gpg-id`. Callers must verify that `PASSWORD_STORE_DIR` exists and is
+/// initialized using `verify_store_exists`. If `append` is true, append the
+/// bytes; otherwise, overwrite the file.
+pub fn encrypt_bytes_into_file<S>(to_encrypt: &[u8], path: S, append: FileMode) -> Result<()>
 where
     S: AsRef<Path>,
 {
@@ -258,98 +268,117 @@ where
     self::create_descending_dirs(&path)?;
 
     dbg!(&path);
-    let mut file = fs::OpenOptions::new()
-        .mode(0o600)
-        .write(true)
-        .create(true)
-        .open(&path)?;
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
-    let id_file = fs::OpenOptions::new().read(true).open(&*GPG_ID_FILE)?;
+    let id_file = match self::find_gpg_id(
+        path.parent()
+            .with_context(|| format!("{} didn't have a parent", path.display()))?,
+    ) {
+        Result::Ok(parent) => fs::OpenOptions::new()
+            .read(true)
+            .open(&format!("{}/.gpg-id", parent.display()))?,
+        Result::Err(_) => fs::OpenOptions::new().read(true).open(&*GPG_ID_FILE)?,
+    };
+
+    dbg!(&id_file);
     let reader = BufReader::new(&id_file);
-    let mut keys = vec![
-        PASSWORD_STORE_SIGNING_KEY.to_string(),
-        PASSWORD_STORE_KEY.to_string(),
-    ];
+    let mut keys = Vec::new();
 
     for line in reader.lines() {
         let line = line?;
         keys.push(line);
     }
+    keys.extend(PASSWORD_STORE_KEY.clone());
 
-    let mut signing_keys = Vec::new();
+    let encryption_keys = keys
+        .iter()
+        .map(|k| ctx.get_key(k))
+        .filter_map(|k| k.ok())
+        .collect::<Vec<_>>();
 
-    for key in keys.iter() {
-        match ctx.get_key(key) {
-            Ok(key) => signing_keys.push(key),
-            Err(_) => continue,
-        };
+    let signing_keys = &PASSWORD_STORE_SIGNING_KEY
+        .iter()
+        .map(|k| ctx.get_key(k))
+        .filter_map(|k| k.ok())
+        .collect::<Vec<_>>();
+
+    for key in signing_keys {
+        ctx.add_signer(&key)
+            .with_context(|| format!("Failed to add key {} as signer", key.id().unwrap()))?;
     }
 
-    if signing_keys.is_empty() {
+    if encryption_keys.is_empty() {
         return Err(PassrsError::NoSigningKeyFound.into());
     } else {
-        let mut cipher = Vec::new();
+        let mut to_be_encrypted: Vec<u8> = Vec::new();
 
-        ctx.encrypt(&signing_keys, plain, &mut cipher)?;
-        file.write_all(&cipher)?;
+        if append == FileMode::Append {
+            let mut to_be_decrypted = Data::load(path.display().to_string())?;
+
+            ctx.decrypt(&mut to_be_decrypted, &mut to_be_encrypted)?;
+            to_be_encrypted.push(b'\n');
+        }
+
+        to_be_encrypted.extend(to_encrypt);
+
+        let mut encrypted_contents: Vec<u8> = Vec::new();
+        let mut file = fs::OpenOptions::new()
+            .mode(0o600)
+            .write(true)
+            .create(true)
+            .open(&path)?;
+
+        ctx.encrypt(
+            &encryption_keys,
+            &mut to_be_encrypted,
+            &mut encrypted_contents,
+        )?;
+        file.write_all(&encrypted_contents)?;
+
+        if !signing_keys.is_empty() {
+            dbg!(&signing_keys);
+            let signature = format!("{}.sig", path.display());
+            let mut outbuf: Vec<u8> = Vec::new();
+            let mut file = fs::OpenOptions::new()
+                .mode(0o600)
+                .truncate(true)
+                .write(true)
+                .create(true)
+                .open(&signature)?;
+
+            ctx.sign_detached(&encrypted_contents, &mut outbuf)?;
+            file.write_all(&outbuf)?;
+        }
     }
 
     Ok(())
 }
 
-pub fn append_encrypted_bytes<S>(plain: &[u8], path: S) -> Result<()>
+pub fn find_gpg_id<P>(dir: P) -> Result<PathBuf>
 where
-    S: AsRef<Path>,
+    P: AsRef<Path>,
 {
-    let path = path.as_ref();
-    create_descending_dirs(&path)?;
+    let dir = dir.as_ref();
 
-    dbg!(&path);
-    let mut file = fs::OpenOptions::new()
-        .mode(0o600)
-        .write(true)
-        .create(true)
-        .open(&path)?;
-    let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
-    let id_file = fs::OpenOptions::new().read(true).open(&*GPG_ID_FILE)?;
-    let reader = BufReader::new(&id_file);
-    let mut keys = vec![
-        PASSWORD_STORE_SIGNING_KEY.to_string(),
-        PASSWORD_STORE_KEY.to_string(),
-    ];
-
-    for line in reader.lines() {
-        let line = line?;
-        keys.push(line);
+    // Get directory's contents
+    for entry in fs::read_dir(&dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let show = entry
+            .file_name()
+            .to_str()
+            .map(|e| !e.starts_with(".git"))
+            .unwrap_or(false);
+        if show {
+            if let (Some(parent), Some(name)) = (path.parent(), path.file_name()) {
+                // dbg!(&parent, &name);
+                if name == ".gpg-id" {
+                    return Ok(parent.to_path_buf());
+                }
+            }
+        }
     }
 
-    let mut signing_keys = Vec::new();
-
-    for key in keys.iter() {
-        match ctx.get_key(key) {
-            Ok(key) => signing_keys.push(key),
-            Err(_) => continue,
-        };
-    }
-    dbg!(&signing_keys.len());
-
-    if signing_keys.is_empty() {
-        return Err(PassrsError::NoSigningKeyFound.into());
-    } else {
-        let mut input = Data::load(path.display().to_string())?;
-        let mut output = Vec::new();
-
-        ctx.decrypt(&mut input, &mut output)?;
-        output.push(b'\n');
-        output.extend(plain);
-
-        let mut contents = Vec::new();
-
-        ctx.encrypt(&signing_keys, &mut output, &mut contents)?;
-        file.write_all(&contents)?;
-    }
-
-    Ok(())
+    Err(PassrsError::NoGpgIdFile(dir.display().to_string()).into())
 }
 
 fn git_open<S>(path: S) -> Result<Repository>
@@ -449,11 +478,6 @@ where
     let id = self::uid(source)?;
     let meta = source.metadata()?;
 
-    // /home/vin/.password-store/Uncategorized/rclone
-    // mkdir: created directory '/home/vin/.password-store/rclone'
-    // '/home/vin/.password-store/Uncategorized/rclone' -> '/home/vin/.password-store/rclone/lmbo'
-    // '/home/vin/.password-store/Uncategorized/rclone/password.gpg' -> '/home/vin/.password-store/rclone/lmbo/password.gpg'
-
     if meta.is_file() {
         match fs::metadata(&dest) {
             Ok(_) => {}
@@ -467,6 +491,7 @@ where
             return Err(PassrsError::SourceIsDestination.into());
         }
 
+        // TODO: set permissions according to PASSWORD_STORE_UMASK
         fs::create_dir_all(dest)?;
         // println!("created directory {}", &dest.display());
 

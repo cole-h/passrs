@@ -19,6 +19,7 @@ use crate::consts::{
     PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_GENERATED_LENGTH,
 };
 use crate::util;
+use crate::util::FileMode;
 use crate::PassrsError;
 
 pub fn generate(
@@ -114,11 +115,11 @@ pub fn generate(
 
         let existing = existing.join("\n");
         let existing = existing.as_bytes();
-        util::encrypt_bytes_into_file(existing, &path)?;
+        util::encrypt_bytes_into_file(existing, &path, FileMode::Clobber)?;
         util::commit(format!("Replace generated secret for {}", pass_name))?;
         Ok(())
     } else {
-        util::encrypt_bytes_into_file(&password_bytes, &path)?;
+        util::encrypt_bytes_into_file(&password_bytes, &path, FileMode::Clobber)?;
         util::commit(format!("Save generated secret for {}", pass_name))?;
         Ok(())
     }

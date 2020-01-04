@@ -13,6 +13,7 @@ use zeroize::Zeroize;
 
 use crate::consts::{EDITOR, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS};
 use crate::util;
+use crate::util::FileMode;
 use crate::PassrsError;
 
 pub fn edit(pass_name: String) -> Result<()> {
@@ -69,7 +70,7 @@ pub fn edit(pass_name: String) -> Result<()> {
     }
 
     // 6. encrypt contents of /dev/shm to file in store
-    util::encrypt_bytes_into_file(&new_contents, &temp_path)?;
+    util::encrypt_bytes_into_file(&new_contents, &temp_path, FileMode::Clobber)?;
     new_contents.zeroize();
 
     // 7. delete temporaries

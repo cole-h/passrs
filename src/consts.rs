@@ -30,8 +30,20 @@ pub static EDITOR: Lazy<String> = Lazy::new(|| {
     }
 });
 // FIXME: remove in favor of PASSWORD_STORE_DIR (only used for debugging rn)
-pub static DEFAULT_STORE_PATH: Lazy<String> = // Lazy::new(|| "/tmp/passrstest/".to_owned());
-Lazy::new(|| env::var("PASSWORD_STORE_DIR").unwrap_or_else(|_| format!("{}/.password-store/", *HOME)));
+pub static DEFAULT_STORE_PATH: Lazy<String> = Lazy::new(|| "/tmp/passrstest/".to_owned());
+
+// pub static DEFAULT_STORE_PATH: Lazy<String> = Lazy::new(|| match env::var("PASSWORD_STORE_DIR") {
+//     Ok(store) => {
+//         if !store.ends_with('/') {
+//             store + "/"
+//         } else {
+//             store
+//         }
+//     }
+//     Err(_) => format!("{}/.password-store/", *HOME),
+// });
+
+// TODO: GPG_ID_FILE is recursive; if a subdir has a .gpg-id, sign with that one instead
 pub static GPG_ID_FILE: Lazy<String> = Lazy::new(|| [&PASSWORD_STORE_DIR, ".gpg-id"].concat());
 pub static PASSRS_UNCLIP_HASH: Lazy<String> =
     Lazy::new(|| env::var("PASSRS_UNCLIP_HASH").unwrap_or_default());
@@ -52,8 +64,10 @@ pub static PASSWORD_STORE_NAME: Lazy<usize> = Lazy::new(|| {
 // pass(1)
 pub static PASSWORD_STORE_DIR: Lazy<String> =
     Lazy::new(|| env::var("PASSWORD_STORE_DIR").unwrap_or_else(|_| DEFAULT_STORE_PATH.to_owned()));
-pub static PASSWORD_STORE_KEY: Lazy<String> =
-    Lazy::new(|| env::var("PASSWORD_STORE_KEY").unwrap_or_default());
+pub static PASSWORD_STORE_KEY: Lazy<Vec<String>> = Lazy::new(|| {
+    let keys = env::var("PASSWORD_STORE_KEY").unwrap_or_default();
+    keys.split(" ").map(ToOwned::to_owned).collect::<Vec<_>>()
+});
 // TODO: unimplemented
 // pub static PASSWORD_STORE_GPG_OPTS: Lazy<String> =
 //     Lazy::new(|| env::var("PASSWORD_STORE_GPG_OPTS").unwrap_or_default());
@@ -93,8 +107,10 @@ pub static PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS: Lazy<Vec<u8>> =
     );
 // TODO: If PASSWORD_STORE_SIGNING_KEY is set, sign every file with that key and
 // output to {filename}.sig
-pub static PASSWORD_STORE_SIGNING_KEY: Lazy<String> =
-    Lazy::new(|| env::var("PASSWORD_STORE_SIGNING_KEY").unwrap_or_default());
+pub static PASSWORD_STORE_SIGNING_KEY: Lazy<Vec<String>> = Lazy::new(|| {
+    let keys = env::var("PASSWORD_STORE_SIGNING_KEY").unwrap_or_default();
+    keys.split(" ").map(ToOwned::to_owned).collect::<Vec<_>>()
+});
 
 // lazy_static::lazy_static! {
 //     pub static ref VERSION: String = {

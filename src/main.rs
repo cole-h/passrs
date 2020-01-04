@@ -1,4 +1,3 @@
-#![feature(backtrace)]
 #![allow(unreachable_code, unused_variables)]
 // FIXME: some funcs take Path, some take &str, some take String, and some take
 // PathBuf... wtf bro
@@ -61,9 +60,12 @@ pub(crate) enum PassrsError {
     ContentsUnchanged,
     #[error("Error: Failed to get contents of clipboard")]
     PasteFailed,
+    #[error("Error: No `.gpg-id` was found in '{}'", _0)]
+    NoGpgIdFile(String),
 }
 
 fn main() {
+    // dbg!(util::find_gpg_id("/tmp/passrstest/mnop/fs"));
     if let Err(err) = cli::opt() {
         // eprintln!("{:?}", err.backtrace()); // this displays the backtrace
         eprintln!("{}", err);

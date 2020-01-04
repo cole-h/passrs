@@ -7,6 +7,7 @@ use termion::input::TermRead;
 
 use crate::subcmds::otp::validate;
 use crate::util;
+use crate::util::FileMode;
 use crate::PassrsError;
 
 // TODO: pass otp insert -e -i goo => insert otpauth:// URI
@@ -59,14 +60,14 @@ pub fn insert(force: bool, echo: bool, secret_name: String, from_secret: bool) -
         if let Some(secret) = secret {
             let secret = format!("otpauth://totp/{}?secret={}", secret_name, secret);
             validate::validate(&secret)?;
-            util::encrypt_bytes_into_file(secret.as_bytes(), path)?;
+            util::encrypt_bytes_into_file(secret.as_bytes(), path, FileMode::Clobber)?;
         }
     } else {
         let secret = util::prompt_for_secret(echo, &secret_name)?;
 
         if let Some(secret) = secret {
             validate::validate(&secret)?;
-            util::encrypt_bytes_into_file(secret.as_bytes(), path)?;
+            util::encrypt_bytes_into_file(secret.as_bytes(), path, FileMode::Clobber)?;
         }
     }
 

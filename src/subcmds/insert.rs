@@ -6,6 +6,7 @@ use anyhow::Result;
 use termion::input::TermRead;
 
 use crate::util;
+use crate::util::FileMode;
 use crate::PassrsError;
 
 pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Result<()> {
@@ -97,7 +98,7 @@ pub fn insert(echo: bool, multiline: bool, force: bool, pass_name: String) -> Re
 
     // if we prompted the user for a password and got one
     if let Some(password) = password {
-        util::encrypt_bytes_into_file(password.as_bytes(), path)?;
+        util::encrypt_bytes_into_file(password.as_bytes(), path, FileMode::Clobber)?;
     }
 
     util::commit(format!("Add given secret for {} to store", pass_name))?;
