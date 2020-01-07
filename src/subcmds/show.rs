@@ -6,11 +6,14 @@ use std::time;
 use anyhow::{Context, Result};
 use data_encoding::HEXLOWER;
 use ring::digest;
-use termion::{color, style};
+use termion::color;
+use termion::style;
+use zeroize::Zeroize;
 
 use crate::clipboard;
 use crate::consts::{PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_DIR};
-use crate::ui::{self, UiResult};
+use crate::ui;
+use crate::ui::UiResult;
 use crate::util;
 
 #[allow(clippy::option_option)]
@@ -19,7 +22,7 @@ pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Result<()> {
 
     match file {
         UiResult::Success(file) => {
-            let password = util::decrypt_file_into_strings(&file)?;
+            let mut password = util::decrypt_file_into_strings(&file)?;
 
             match clip {
                 Some(clip) => {
@@ -46,7 +49,7 @@ pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Result<()> {
                 }
                 _ => {
                     println!("{}", &file[PASSWORD_STORE_DIR.len()..file.len() - 4]);
-                    for line in password {
+                    for line in &password {
                         println!(
                             "{yellow}{}{reset}",
                             line,
@@ -56,6 +59,8 @@ pub fn show(clip: Option<Option<usize>>, pass_name: String) -> Result<()> {
                     }
                 }
             }
+
+            password.zeroize();
         }
         UiResult::CopiedToClipboard(file) => {
             println!(

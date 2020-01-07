@@ -1,6 +1,5 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::Result;
 use data_encoding::BASE32_NOPAD;
 use data_encoding::HEXLOWER_PERMISSIVE;
 use ring::hmac;
@@ -22,13 +21,13 @@ macro_rules! otp_builder {
             self
         }
 
-        pub fn base32_secret<S>(&mut self, secret: S) -> Result<&mut $t>
+        pub fn base32_secret<S>(&mut self, secret: S) -> &mut $t
         where
             S: AsRef<[u8]>,
         {
             let secret = secret.as_ref();
-            self.key = BASE32_NOPAD.decode(secret)?;
-            Ok(self)
+            self.key = BASE32_NOPAD.decode(secret).expect("Secret was not valid base32");
+            self
         }
 
         pub fn ascii_secret<S>(&mut self, secret: S) -> &mut $t
@@ -146,7 +145,10 @@ impl HOTP {
         let hmac_result = hmac_result.as_ref();
 
         // `offset` is in the range 0..15, inclusive
-        let offset = (hmac_result.last().unwrap() & 0xf) as usize;
+        let offset = (hmac_result
+            .last()
+            .expect("hmac_result didn't have a last element")
+            & 0xf) as usize;
 
         // Convert the hmac_result (S) to a number in 0..2^{32}-1 (0x7fff_ffff)
         let snum: u32 = ((u32::from(hmac_result[offset]) & 0x7f) << 24)
@@ -189,7 +191,7 @@ impl TOTPBuilder {
     pub fn timestamp(&mut self, timestamp: i64) -> &mut TOTPBuilder {
         let current_timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("Couldn't get duration since UNIX_EPOCH")
             .as_secs() as i64;
         self.timestamp_offset = timestamp - current_timestamp;
         self
@@ -237,12 +239,12 @@ pub struct TOTP {
     period: u64,
 }
 
-/// For more informatio see RFC6238: https://tools.ietf.org/html/rfc6238
+/// For more information see RFC6238: https://tools.ietf.org/html/rfc6238
 impl TOTP {
     fn counter(&self) -> u64 {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .expect("Couldn't get duration since UNIX_EPOCH")
             .as_secs() as i64
             + self.timestamp_offset;
         let timestamp = timestamp as u64;
@@ -276,7 +278,6 @@ mod tests {
 
         let totp = TOTPBuilder::new()
             .base32_secret(&key_base32)
-            .unwrap()
             .timestamp(1111111109)
             .period(70)
             .output_length(8)
@@ -298,10 +299,7 @@ mod tests {
         ];
         let key_base32 = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_owned();
 
-        let totp = TOTPBuilder::new()
-            .base32_secret(&key_base32)
-            .unwrap()
-            .build();
+        let totp = TOTPBuilder::new().base32_secret(&key_base32).build();
 
         assert_eq!(totp.key, key);
         assert_eq!(totp.output_len, 6);
@@ -320,7 +318,6 @@ mod tests {
 
         let hotp = HOTPBuilder::new()
             .base32_secret(&key_base32)
-            .unwrap()
             .algorithm(HashAlgorithm::Sha256)
             .build();
 
@@ -343,7 +340,6 @@ mod tests {
 
         let hotp = HOTPBuilder::new()
             .base32_secret(&key_base32)
-            .unwrap()
             .counter(5)
             .output_length(8)
             .algorithm(HashAlgorithm::Sha512)

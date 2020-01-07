@@ -1,34 +1,39 @@
-use std::fmt::{self, Display};
+use std::fmt;
+use std::fmt::Display;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use termion::{color, style};
+use termion::color;
+use termion::style;
 
-use crate::consts::{PASSWORD_STORE_DIR, PASSWORD_STORE_NAME};
+use crate::consts::PASSWORD_STORE_DIR;
 
 const EDGE: &str = "├── ";
 const LINE: &str = "│   ";
 const CORNER: &str = "└── ";
 const BLANK: &str = "    ";
 
-// TODO: make the tree from the path's components -- HashMap? anything will need indirection
-// ignore::WalkBuilder might help with the "only include matches" scenario
-
-pub fn tree<P: Into<PathBuf>>(path: P) -> Result<Tree> {
-    let path = path.into().canonicalize()?;
+pub fn tree<P>(path: P) -> Result<Tree>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref().canonicalize()?;
     let result = fs::read_dir(&path)?.filter_map(|e| e.ok()).fold(
         Tree(path, Vec::new()),
         |mut root, entry| {
-            let dir = entry.metadata().unwrap();
+            let meta = entry
+                .metadata()
+                .expect("Path doesn't exist (failed to get metadata)");
             if entry
                 .file_name()
                 .to_str()
                 .map(|s| !s.starts_with('.'))
                 .unwrap_or(false)
             {
-                if dir.is_dir() {
-                    root.1.push(tree(entry.path()).unwrap());
+                if meta.is_dir() {
+                    root.1
+                        .push(tree(entry.path()).expect("Couldn't create branch"));
                 } else {
                     root.1.push(Tree(entry.path(), Vec::new()));
                 }
@@ -47,7 +52,18 @@ impl Tree {
         for (i, leaf) in leaves.iter().enumerate() {
             let last = i >= leaves.len() - 1;
             let mut prefix = prefix.clone();
-            let leaf_name = leaf.0.file_name().unwrap().to_str().unwrap();
+            let leaf_name = leaf
+                .0
+                .file_name()
+                .expect("Leaf didn't have a filename")
+                .to_str()
+                .expect("Couldn't convert filename to str");
+
+            // If the user has enabled signing, every .sig file will appear in
+            // the tree. We don't want that, so just continue if we hit one.
+            if leaf_name.ends_with(".sig") {
+                continue;
+            }
             for s in &prefix {
                 if *s {
                     write!(f, "{}", BLANK)?;
@@ -98,40 +114,37 @@ impl Tree {
 
 impl Display for Tree {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let name = if self.0.display().to_string() == PASSWORD_STORE_DIR[..*PASSWORD_STORE_NAME] {
+        let name = if self.0 == PathBuf::from(&*PASSWORD_STORE_DIR) {
             "Password Store"
         } else {
-            self.0.file_name().unwrap().to_str().unwrap()
+            self.0
+                .file_name()
+                .expect("Path didn't have a filename")
+                .to_str()
+                .expect("Couldn't convert filename to str")
         };
 
         if self.0.is_dir() {
             writeln!(
                 f,
                 "{bold}{blue}{}{reset}",
-                // self.0.file_name().unwrap().to_str().unwrap(),
                 name,
                 bold = style::Bold,
                 blue = color::Fg(color::Blue),
                 reset = style::Reset
             )?;
         } else {
-            writeln!(f, "{}", self.0.file_name().unwrap().to_str().unwrap())?;
+            writeln!(
+                f,
+                "{}",
+                self.0
+                    .file_name()
+                    .expect("Leaf didn't have a filename")
+                    .to_str()
+                    .expect("Couldn't convert filename to str")
+            )?;
         }
 
         Self::draw_tree(f, &self.1, Vec::new())
     }
 }
-
-// https://github.com/kddeisz/tree
-
-// TODO: petgraph
-// use petgraph::graph::NodeIndex;
-// use petgraph::stable_graph::StableGraph;
-// use petgraph::visit::Dfs;
-// use std::collections::HashMap;
-
-// pub struct Graph {
-//     pub graph: StableGraph<std::path::PathBuf, usize>, // usize = depth of pathbuf
-//     pub nodes: HashMap<std::path::PathBuf, NodeIndex>, // usize = index of child (child number)
-//     pub root: Option<std::path::PathBuf>,
-// }

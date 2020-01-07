@@ -1,8 +1,4 @@
 #![allow(unreachable_code, unused_variables)]
-// FIXME: some funcs take Path, some take &str, some take String, and some take
-// PathBuf... wtf bro
-// FIXME: deal with all unwraps, change to `expect` (or with_context) unless I
-// can guarantee that it won't panic
 // FIXME: ensure all/most code is DRY -- Don't Repeat Yourself
 // FIXME: document EVERYTHING -- all functions, structs, etc
 //   https://doc.rust-lang.org/book/ch14-02-publishing-to-crates-io.html#making-useful-documentation-comments
@@ -27,11 +23,11 @@ mod util;
 pub(crate) enum PassrsError {
     #[error("Error: No private key found")]
     NoPrivateKeyFound,
-    #[error("Error: No matches found for search '{}'", _0)]
+    #[error("Error: No matches found for search '{0}'")]
     NoMatchesFound(String),
     #[error("Error: The entered secrets do not match.")]
     SecretsDontMatch,
-    #[error("Error: Hashes don't match: '{}' vs '{}'", _0, _1)]
+    #[error("Error: Hashes don't match: '{0}' vs '{1}'")]
     HashMismatch(String, String),
     #[error("Error: User aborted")]
     UserAbort,
@@ -40,43 +36,44 @@ pub(crate) enum PassrsError {
              See https://github.com/google/google-authenticator/wiki/Key-Uri-Format for more information.")]
     InvalidKeyUri,
     #[cfg(feature = "otp")]
-    #[error("Error: Invalid hash function: '{}'", _0)]
+    #[error("Error: Invalid hash function: '{0}'")]
     InvalidHashAlgorithm(String),
     #[error("Error: No signing key found")]
     NoSigningKeyFound,
-    #[error("Error: Path '{}' does not exist", _0)]
+    #[error("Error: Path '{0}' does not exist")]
     PathDoesntExist(String),
-    #[error("Error: Sneaky path '{}'", _0)]
+    #[error("Error: Sneaky path '{0}'")]
     SneakyPath(String),
     #[error("Error: Store does not exist")]
     StoreDoesntExist,
-    #[error("Error: '{}' is not in the password store", _0)]
+    #[error("Error: '{0}' is not in the password store")]
     NotInStore(String),
     #[error("Error: Source is destination")]
     SourceIsDestination,
-    #[error("Error: '{}' is a directory", _0)]
+    #[error("Error: '{0}' is a directory")]
     PathIsDir(String),
     #[error("Contents unchanged")]
     ContentsUnchanged,
     #[error("Error: Failed to get contents of clipboard")]
     PasteFailed,
-    #[error("Error: No `.gpg-id` was found in '{}'", _0)]
+    #[error("Error: No `.gpg-id` was found in '{0}'")]
     NoGpgIdFile(String),
+    #[error("Error: Signature for '{0}' does not exist")]
+    MissingSignature(String),
+    #[error("Error: Signature for '{0}' does not match")]
+    BadSignature(String),
+    #[error("Error: Failed to set contents of clipboard")]
+    ClipFailed,
 }
 
 fn main() {
-    // dbg!(util::find_gpg_id("/tmp/passrstest/mnop/fs"));
     if let Err(err) = cli::opt() {
         // eprintln!("{:?}", err.backtrace()); // this displays the backtrace
-        eprintln!("{}", err);
+        //                                     // (which requires a nightly compiler)
+
+        eprint!("{:?}", err);
+        err.chain().skip(1).for_each(|e| eprint!(": {:?}", e));
+        eprintln!();
         std::process::exit(1);
     }
 }
-
-// TODO: every subcommand should use the following scaffolding before doing
-// anything else:
-// 1. ensure directories are created
-// 2. canonicalize paths
-// 3. check for sneaky paths -- what does this entail with Rust? A: just check for ..
-//
-// 99. commit INSIDE THE SUBCMD

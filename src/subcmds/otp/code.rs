@@ -1,9 +1,10 @@
 use anyhow::{Context, Result};
 
 use crate::clipboard;
-use crate::otp::{HOTPBuilder, HashAlgorithm, TOTPBuilder};
+use crate::otp::{HashAlgorithm, TOTPBuilder};
 use crate::subcmds::otp::validate;
-use crate::ui::{self, UiResult};
+use crate::ui;
+use crate::ui::UiResult;
 use crate::util;
 
 pub fn code(clip: bool, pass_name: String) -> Result<()> {
@@ -16,8 +17,6 @@ pub fn code(clip: bool, pass_name: String) -> Result<()> {
         // Ensure `otp` is a valid URI
         validate::validate(otp)?;
 
-        // let otp_type = validate::get_type(otp)?;
-        // let counter = validate::get_counter(otp)?;
         let base32_secret = validate::get_base32_secret(otp)?;
         let period = validate::get_period(otp)?;
         let algorithm = validate::get_algorithm(otp)?;
@@ -46,36 +45,12 @@ where
 {
     let secret = secret.into();
     let auth = TOTPBuilder::new()
-        .base32_secret(&secret)?
+        .base32_secret(&secret)
         .period(period)
         .algorithm(algorithm)
         .output_length(digits)
         .build();
     let code = auth.generate();
-
-    Ok(code)
-}
-
-// TODO
-#[allow(dead_code)]
-fn generate_hotp<S>(
-    secret: S,
-    counter: u64,
-    algorithm: HashAlgorithm,
-    digits: usize,
-) -> Result<String>
-where
-    S: Into<String>,
-{
-    let secret = secret.into();
-    let auth = HOTPBuilder::new()
-        .base32_secret(&secret)?
-        .counter(counter)
-        .algorithm(algorithm)
-        .output_length(digits)
-        .build();
-    let code = auth.generate();
-    // TODO: increment counter, I think?
 
     Ok(code)
 }

@@ -17,7 +17,7 @@ pub fn ls(path: Option<String>) -> Result<()> {
     // no GUI select -- just tell us if entry can't be found
     let tree = tree::tree(&root)?;
     if tree.1.is_empty() {
-        // TODO: we don't show single-element trees
+        // we don't show single-element trees
         return Ok(());
     }
 

@@ -22,7 +22,7 @@ static URI_REGEX: Lazy<Regex> = Lazy::new(|| {
         ]
         .concat(),
     )
-    .unwrap()
+    .expect("Failed to compile OTP URI regex")
 });
 
 pub fn validate<S>(uri: S) -> Result<()>

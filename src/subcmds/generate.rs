@@ -1,6 +1,7 @@
 use std::env;
 use std::fs;
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::process::Command;
 use std::str;
@@ -10,13 +11,14 @@ use std::time;
 use anyhow::Result;
 use data_encoding::HEXLOWER;
 use ring::digest;
+use termion::color;
 use termion::input::TermRead;
-use termion::{color, style};
+use termion::style;
 
 use crate::clipboard;
 use crate::consts::{
     PASSWORD_STORE_CHARACTER_SET, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS,
-    PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_GENERATED_LENGTH,
+    PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_GENERATED_LENGTH, PASSWORD_STORE_UMASK,
 };
 use crate::util;
 use crate::util::FileMode;
@@ -31,7 +33,6 @@ pub fn generate(
     pass_length: Option<usize>,
 ) -> Result<()> {
     let path = util::canonicalize_path(&pass_name)?;
-
     util::create_descending_dirs(&path)?;
 
     let stdin = io::stdin();
@@ -48,20 +49,18 @@ pub fn generate(
         io::stdout().flush()?;
 
         match stdin.read_line()? {
-            Some(reply)
-                if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
-            {
+            Some(reply) if reply.starts_with('y') || reply.starts_with('Y') => {
                 fs::OpenOptions::new()
-                    .mode(0o600)
+                    .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
                     .write(true)
-                    .truncate(true)
+                    .truncate(!in_place)
                     .open(&path)?;
             }
             _ => return Err(PassrsError::UserAbort.into()),
         }
     }
 
-    // NOTE: default sets defined in consts.rs
+    // NOTE: default character sets defined in consts.rs
     let set = if no_symbols {
         &*PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS
     } else {
@@ -80,10 +79,10 @@ pub fn generate(
         "{bold}The generated password for {underline}{}{reset}{bold} is:\n{yellow}{bold}{}{reset}",
         pass_name,
         password,
-        underline = style::Underline,
         bold = style::Bold,
-        yellow = color::Fg(color::Yellow),
+        underline = style::Underline,
         reset = style::Reset,
+        yellow = color::Fg(color::Yellow),
     );
 
     if clip {
@@ -96,10 +95,9 @@ pub fn generate(
         let args = args.iter().filter(|&&x| x != "").collect::<Vec<_>>();
 
         clipboard::clip(&password)?;
-
-        // otherwise, the process doesn't live long enough
+        // Otherwise, the process doesn't live long enough to spawn the unclip
+        // daemon
         thread::sleep(time::Duration::from_millis(50));
-
         Command::new(env::current_exe()?)
             .args(args)
             .env("PASSRS_UNCLIP_HASH", hash)
@@ -107,20 +105,18 @@ pub fn generate(
     }
 
     if in_place {
-        // TODO: ensure file[0] is actually the proper entry
-        let files = util::find_target_single(&pass_name)?;
-        assert_eq!(files.len(), 1);
-        let mut existing = util::decrypt_file_into_strings(files[0].clone())?;
+        let mut existing = util::decrypt_file_into_strings(&path)?;
         existing[0] = password;
 
         let existing = existing.join("\n");
         let existing = existing.as_bytes();
+
         util::encrypt_bytes_into_file(existing, &path, FileMode::Clobber)?;
         util::commit(format!("Replace generated secret for {}", pass_name))?;
-        Ok(())
     } else {
         util::encrypt_bytes_into_file(&password_bytes, &path, FileMode::Clobber)?;
         util::commit(format!("Save generated secret for {}", pass_name))?;
-        Ok(())
     }
+
+    Ok(())
 }

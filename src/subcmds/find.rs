@@ -27,19 +27,25 @@ pub fn find(name: String) -> Result<()> {
             }
         }
     } else if matches.is_empty() {
-        let fuzzy = fuzz_search::best_matches(&name, matches, 5).collect::<Vec<_>>();
+        #[cfg(feature = "fuzzy")]
+        {
+            let fuzzy = fuzz_search::best_matches(&name, matches, 5).collect::<Vec<_>>();
 
-        if fuzzy.is_empty() {
-            return Err(PassrsError::NoMatchesFound(name).into());
-        } else {
-            for found in fuzzy {
-                if found.ends_with(".gpg") {
-                    println!("{}", &found[PASSWORD_STORE_DIR.len()..found.len() - 4]);
-                } else {
-                    println!("{}", &found[PASSWORD_STORE_DIR.len()..]);
+            if fuzzy.is_empty() {
+                return Err(PassrsError::NoMatchesFound(name).into());
+            } else {
+                for found in fuzzy {
+                    if found.ends_with(".gpg") {
+                        println!("{}", &found[PASSWORD_STORE_DIR.len()..found.len() - 4]);
+                    } else {
+                        println!("{}", &found[PASSWORD_STORE_DIR.len()..]);
+                    }
                 }
             }
         }
+
+        #[cfg(not(feature = "fuzzy"))]
+        return Err(PassrsError::NoMatchesFound(name).into());
     } else {
         return Err(PassrsError::NoMatchesFound(name).into());
     }

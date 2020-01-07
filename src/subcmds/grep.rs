@@ -7,6 +7,7 @@ use grep_searcher::{BinaryDetection, SearcherBuilder};
 use termcolor::{BufferedStandardStream, ColorChoice, StandardStream};
 use termion::style;
 use walkdir::WalkDir;
+use zeroize::Zeroize;
 
 use crate::consts::{HOME, PASSWORD_STORE_DIR};
 use crate::util;
@@ -28,16 +29,15 @@ pub fn grep(search: String) -> Result<()> {
         // Shorter and more concise way to do this is to use grep_cli, but we
         // only use it for 2 things, and it pulls in 3 extra dependencies. Both
         // cli::stdout() and cli::is_tty_stdout() can be implemented here fairly
-        // easily. `atty` is already a dependency of `clap`, so we get that for
-        // free. We use `termcolor` because I want colors for matches, so we get
-        // `StandardStream` and `BufferedStandardStream` for free.
+        // easily. We use `termcolor` because I want colors for matches, so we
+        // can get `StandardStream` and `BufferedStandardStream` for free.
         .build({
-            let color = if atty::is(atty::Stream::Stdout) {
+            let color = if termion::is_tty(&io::stdout()) {
                 ColorChoice::Auto
             } else {
                 ColorChoice::Never
             };
-            if atty::is(atty::Stream::Stdout) {
+            if termion::is_tty(&io::stdout()) {
                 let out = StandardStream::stdout(color);
                 StandardStreamKind::LineBuffered(out)
             } else {
@@ -69,7 +69,7 @@ pub fn grep(search: String) -> Result<()> {
         // We guarantee all paths end in .gpg by this point, so we can cut it
         // off without a problem (famous last words)
         let file = &path[separator..path.len() - 4];
-        let contents = util::decrypt_file_into_bytes(path)?;
+        let mut contents = util::decrypt_file_into_bytes(path)?;
         let formatted_path = format!("{}{bold}{}", pre, file, bold = style::Bold);
 
         searcher.search_slice(
@@ -77,6 +77,7 @@ pub fn grep(search: String) -> Result<()> {
             &contents,
             printer.sink_with_path(&matcher, &formatted_path),
         )?;
+        contents.zeroize();
     }
 
     Ok(())

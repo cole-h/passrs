@@ -1,10 +1,12 @@
 use std::fs;
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 
 use anyhow::Result;
 use termion::input::TermRead;
 
+use crate::consts::PASSWORD_STORE_UMASK;
 use crate::util;
 use crate::PassrsError;
 
@@ -26,12 +28,10 @@ pub fn rm(recursive: bool, force: bool, pass_name: String) -> Result<()> {
         io::stdout().flush()?;
 
         match stdin.read_line()? {
-            Some(reply)
-                if reply.chars().nth(0) == Some('y') || reply.chars().nth(0) == Some('Y') =>
-            {
+            Some(reply) if reply.starts_with('y') || reply.starts_with('Y') => {
                 if path.is_file() {
                     fs::OpenOptions::new()
-                        .mode(0o600)
+                        .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
                         .write(true)
                         .truncate(true)
                         .open(&path)?;

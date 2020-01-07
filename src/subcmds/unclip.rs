@@ -17,8 +17,6 @@ pub fn unclip(timeout: u64, force: bool) -> Result<()> {
             "Unclip is spawned in the background when you copy to your clipboard. \
              This should not be called by a user."
         );
-        // TODO: return early only when I'm not debugging
-        #[cfg(not(debug_assertions))]
         return Ok(());
     }
 
@@ -35,7 +33,7 @@ pub fn unclip(timeout: u64, force: bool) -> Result<()> {
     thread::sleep(time::Duration::from_secs(timeout));
 
     Command::new("wl-copy").arg("--clear").spawn()?;
-    // TODO: notify that clipboard was cleared
+    // TODO: notify that clipboard was cleared?
 
     Ok(())
 }

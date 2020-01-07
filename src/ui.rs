@@ -1,17 +1,20 @@
 use std::env;
-use std::io::{self, Write};
+use std::io;
+use std::io::Write;
 
 use anyhow::{Context, Result};
+use termion::color;
 use termion::event::Key;
 use termion::input::MouseTerminal;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
-use termion::{color, style};
+use termion::style;
 use tui::backend::TermionBackend;
-use tui::layout::{Constraint, Direction, Layout, Rect};
+use tui::layout::{Constraint, Direction, Layout};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, SelectableList, Text, Widget};
 use tui::Terminal;
+use zeroize::Zeroize;
 
 use crate::clipboard;
 use crate::consts::PASSWORD_STORE_DIR;
@@ -58,22 +61,23 @@ impl Ui {
         }
     }
 
-    fn max_len(&self) -> Option<u16> {
-        let mut max_len = 0;
-        for entry in &self.entries {
-            max_len = if entry.len() > max_len {
-                entry.len()
-            } else {
-                max_len
-            };
-        }
+    // TODO: use this to resize the UI based on length
+    // fn max_len(&self) -> Option<u16> {
+    //     let mut max_len = 0;
+    //     for entry in &self.entries {
+    //         max_len = if entry.len() > max_len {
+    //             entry.len()
+    //         } else {
+    //             max_len
+    //         };
+    //     }
 
-        if max_len == 0 {
-            None
-        } else {
-            Some(max_len as u16)
-        }
-    }
+    //     if max_len == 0 {
+    //         None
+    //     } else {
+    //         Some(max_len as u16)
+    //     }
+    // }
 }
 
 /// +-<binary name>--------------------------------------------+
@@ -108,11 +112,9 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
     terminal.hide_cursor()?;
     terminal.clear()?;
 
-    let _max_width = u16::max(app.max_len().unwrap_or(0), 95);
-    let _rect = Rect::new(0, 0, _max_width, terminal.size()?.height);
-
     loop {
-        // TODO: once terminal width is smaller than max_width
+        // TODO: once terminal width is smaller than max_width, reflow
+        // paragraphs
         let size = terminal.size()?;
 
         terminal.draw(|mut frame| {
@@ -185,8 +187,9 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
                     entry = app.selected;
                     if let Some(entry) = app.selected {
                         let entry = matches[entry].to_owned();
-                        let contents = util::decrypt_file_into_strings(&entry)?;
+                        let mut contents = util::decrypt_file_into_strings(&entry)?;
                         clipboard::clip(&contents[0])?;
+                        contents.zeroize();
 
                         return Ok(UiResult::CopiedToClipboard(entry));
                     }

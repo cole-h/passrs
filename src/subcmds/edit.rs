@@ -6,78 +6,103 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::str;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use data_encoding::HEXLOWER;
 use ring::digest;
 use zeroize::Zeroize;
 
-use crate::consts::{EDITOR, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS};
+use crate::consts::{EDITOR, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, PASSWORD_STORE_UMASK};
 use crate::util;
 use crate::util::FileMode;
 use crate::PassrsError;
 
 pub fn edit(pass_name: String) -> Result<()> {
-    // 1. decrypt file to /dev/shm/{exe}.{20 rand alnum chars}/{5 rand
+    // 1. Decrypt file to /dev/shm/{exe}.{20 rand alnum chars}/{5 rand
     // alnum}-path-components-except-for-root.txt
-    let temp_path = temp_file(&pass_name)?;
+    let temp_path = self::temp_file(&pass_name)?;
+    util::create_descending_dirs(&temp_path)?;
     let file = util::canonicalize_path(&pass_name)?;
 
-    util::create_descending_dirs(&temp_path)?;
-
-    let mut contents = util::decrypt_file_into_bytes(&file)?;
+    // If file doesn't exist, create empty Vec for contents (we can't decrypt a
+    // nonexistent file). This is the cleanest solution without throwing
+    // conditionals everywhere to ensure the file exists.
+    let mut contents = if file.is_file() {
+        util::decrypt_file_into_bytes(&file)?
+    } else {
+        Vec::new()
+    };
     let hash = HEXLOWER.encode(digest::digest(&digest::SHA256, &contents).as_ref());
-    let mut tempfile = fs::OpenOptions::new()
-        .mode(0o600)
-        .read(true)
+
+    let mut temp_file = fs::OpenOptions::new()
+        .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
         .write(true)
-        .create_new(true)
+        .create(true)
         .open(&temp_path)?;
 
-    tempfile.write_all(&contents)?;
+    temp_file.write_all(&contents)?;
     contents.zeroize();
 
-    // 2. spawn editor of that file
+    // 2. Spawn editor of that file
     Command::new(&*EDITOR)
         .arg(&temp_path)
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
-        // 3. wait for process to exit
-        .output()?;
+        // 3. Wait for process to exit
+        .status()?;
 
-    // 4. read new contents of the tempfile and calculate a hash of the contents
+    // 4. Read new contents of the tempfile and calculate a hash of the contents
     let mut new_contents = Vec::new();
 
-    tempfile.seek(SeekFrom::Start(0))?;
-    tempfile.read_to_end(&mut new_contents)?;
+    let mut temp_file = fs::OpenOptions::new()
+        .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
+        .read(true)
+        .open(&temp_path)?;
+
+    temp_file.seek(SeekFrom::Start(0))?;
+    temp_file.read_to_end(&mut new_contents)?;
 
     let new_hash = HEXLOWER.encode(digest::digest(&digest::SHA256, &new_contents).as_ref());
 
-    // 5a. if same, zero_memory both and notify nothing changed
-    // 5b. if not same, truncate old file and write new bytes to file
+    // 5a. If the hashes are the same, nothing changed
     if hash == new_hash {
         new_contents.zeroize();
         fs::remove_file(&temp_path)?;
-        fs::remove_dir(PathBuf::from(&temp_path).parent().unwrap())?;
+        fs::remove_dir(
+            PathBuf::from(&temp_path)
+                .parent()
+                .with_context(|| "Path did not contain a parent")?,
+        )?;
 
         return Err(PassrsError::ContentsUnchanged.into());
+    // 5b. If the hashes are different but the user didn't enter anything,
+    // treat that as a user abort
     } else if new_contents.is_empty() {
         new_contents.zeroize();
         fs::remove_file(&temp_path)?;
-        fs::remove_dir(PathBuf::from(&temp_path).parent().unwrap())?;
+        fs::remove_dir(
+            PathBuf::from(&temp_path)
+                .parent()
+                .with_context(|| "Path did not contain a parent")?,
+        )?;
 
         return Err(PassrsError::UserAbort.into());
     }
+    // 5c. If the hashes are different, we are clear to proceed
 
-    // 6. encrypt contents of /dev/shm to file in store
-    util::encrypt_bytes_into_file(&new_contents, &temp_path, FileMode::Clobber)?;
+    // 6. Encrypt contents of temp_file to file in store
+    util::encrypt_bytes_into_file(&new_contents, &file, FileMode::Clobber)?;
     new_contents.zeroize();
+    util::commit(format!("Edit secret for {} using {}", pass_name, *EDITOR))?;
 
     // 7. delete temporaries
     fs::remove_file(&temp_path)?;
-    fs::remove_dir(PathBuf::from(&temp_path).parent().unwrap())?;
+    fs::remove_dir(
+        PathBuf::from(&temp_path)
+            .parent()
+            .with_context(|| "Path did not contain a parent")?,
+    )?;
 
-    util::commit(format!("Edit secret for {} using {}", pass_name, *EDITOR))?;
     Ok(())
 }
 
@@ -88,14 +113,16 @@ where
     assert!(PathBuf::from("/dev/shm/").metadata().is_ok());
 
     let path = path.as_ref();
-
     let path = path.replace("/", "-");
     let folder = util::generate_chars_from_set(&*PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, 20)?;
     let file = util::generate_chars_from_set(&*PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, 5)?;
 
     let path = format!(
         "/dev/shm/{exe}.{folder}/{file}-{path}.txt",
-        exe = env::current_exe()?.file_name().unwrap().to_string_lossy(),
+        exe = env::current_exe()?
+            .file_name()
+            .with_context(|| "Current executable doesn't have a filename...?")?
+            .to_string_lossy(),
         folder = str::from_utf8(&folder)?,
         file = str::from_utf8(&file)?,
         path = path

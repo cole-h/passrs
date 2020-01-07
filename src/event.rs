@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+//! https://github.com/fdehau/tui-rs/blob/0168442c224bd3cd23f1d2b6494dd236b556a124/examples/util/event.rs
 // input_handle and tick_handle are never used directly, but necessary
 // nonetheless
 

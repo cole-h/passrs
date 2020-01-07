@@ -1,33 +1,26 @@
 use std::fs;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::str;
 
 use anyhow::{Context as _, Result};
 use git2::Repository;
-use gpgme::{Context, Data, Protocol, SignMode};
+use gpgme::error::Error as GpgError;
+use gpgme::{Context, Data, Protocol};
 use rand::Rng;
 use termion::input::TermRead;
 use walkdir::WalkDir;
 
 use crate::consts::{
     GPG_ID_FILE, HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_SIGNING_KEY,
+    PASSWORD_STORE_UMASK,
 };
 use crate::PassrsError;
 
-// TODO: check paths in every function that reads or writes to .password-store
-// TODO: move all git-related fns to a git.rs
-// TODO: all functions except init require that the password store exists
-// (git repo must be init'd, and .gpg-id must be present)
-
-// TODO: for all commands that write to the store, create_descending_dirs
-// 1. canonicalize_path
-// 2. path_exists (which implicitly check_sneaky_paths)
-// 3. sep=rfind('/') and fs::create_all_dirs(path[..sep])
-
-// TODO: verify function doesn't munge the path
 /// Paths may be an absolute path to the entry, or relative to the store's root.
 pub fn canonicalize_path<S>(path: S) -> Result<PathBuf>
 where
@@ -35,23 +28,27 @@ where
 {
     let path = path.as_ref();
     let mut path = path.replace("~", &HOME);
-
     if !path.contains(&*PASSWORD_STORE_DIR) {
         path = [PASSWORD_STORE_DIR.to_owned(), path].concat();
     }
 
     self::check_sneaky_paths(&path)?;
 
-    path = match fs::metadata(&path) {
-        Ok(_) => path,
-        Err(_) => {
-            if !path.ends_with(".gpg") {
-                path + ".gpg"
-            } else {
-                path
-            }
-        }
+    path = if path.ends_with(".gpg") {
+        path
+    } else {
+        path + ".gpg"
     };
+    // path = match fs::metadata(&path) {
+    //     Ok(_) => path,
+    //     Err(_) => {
+    //         if path.ends_with(".gpg") {
+    //             path
+    //         } else {
+    //             path + ".gpg"
+    //         }
+    //     }
+    // };
 
     Ok(PathBuf::from(path))
 }
@@ -62,15 +59,11 @@ where
 {
     let path = path.as_ref();
     let mut path = path.replace("~", &HOME);
-
     if !path.contains(&*PASSWORD_STORE_DIR) {
         path = [PASSWORD_STORE_DIR.to_owned(), path].concat();
     }
 
     self::check_sneaky_paths(&path)?;
-
-    // TODO: callers should create_descending_dirs when appropriate
-    // create_descending_dirs(&path)?;
 
     Ok(PathBuf::from(path))
 }
@@ -97,9 +90,8 @@ where
 {
     let path = path.as_ref();
     let meta = fs::metadata(&path);
-
-    // check if path already exists
     if meta.is_ok() {
+        // if meta returns an Ok(..), the path exists
         return Ok(true);
     }
 
@@ -108,19 +100,13 @@ where
     Ok(false)
 }
 
-// TODO: check for .. and shell expansion
-// TODO: only allowed to specify in PASSWORD_STORE_DIR
 fn check_sneaky_paths<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
-    let strpath = path.to_str().unwrap();
-
+    let strpath = path.display().to_string();
     if strpath.contains("../") || strpath.contains("/..") {
-        return Err(PassrsError::SneakyPath(path.display().to_string()).into());
-    }
-    if !strpath.contains(&*PASSWORD_STORE_DIR) {
         return Err(PassrsError::SneakyPath(path.display().to_string()).into());
     }
 
@@ -132,7 +118,7 @@ where
 // TODO: maybe frecency as well? (a la z, j, fasd, autojump, etc)
 pub fn find_target_single<S>(target: S) -> Result<Vec<String>>
 where
-    S: AsRef<str> + ToString,
+    S: AsRef<str>,
 {
     let mut matches: Vec<String> = Vec::new();
     let target = target.as_ref();
@@ -149,14 +135,20 @@ where
     {
         let entry = path?;
         let is_file = entry.path().is_file();
-        let filename = &entry.file_name().to_str().unwrap();
-        let path = entry.clone().into_path().to_str().unwrap().to_owned();
+        let filename = &entry
+            .file_name()
+            .to_str()
+            .with_context(|| "Filename couldn't be converted to str")?;
+        let path = entry
+            .path()
+            .to_str()
+            .with_context(|| "Path couldn't be converted to str")?;
 
         if filename == &target.to_owned() && path.ends_with(".gpg") {
-            return Ok(vec![path]);
+            return Ok(vec![path.to_owned()]);
         }
 
-        if path[PASSWORD_STORE_DIR.len()..].contains(target) && is_file && path.ends_with(".gpg") {
+        if path.ends_with(".gpg") && is_file && path[PASSWORD_STORE_DIR.len()..].contains(target) {
             matches.push(path.to_owned());
         }
     }
@@ -168,41 +160,38 @@ where
     }
 }
 
-// TODO: fuzzy search feature -- 5 closest matches
-// pub fn find_target_multi<V>(targets: V) -> Result<Vec<String>>
-// where
-//     V: AsRef<[String]>,
-// {
-//     let targets = targets.as_ref();
-//     let mut matches = Vec::new();
-
-//     for target in targets {
-//         for entry in WalkDir::new(&*PASSWORD_STORE_DIR) {
-//             let entry = entry?.into_path().to_str().unwrap().to_owned();
-
-//             if entry[PASSWORD_STORE_DIR.len()..].contains(target) {
-//                 matches.push(entry);
-//             }
-//         }
-//     }
-//     if matches.is_empty() {
-//         Err(PassrsError::NoMatchesFoundMultiple(targets.to_vec()).into())
-//     } else {
-//         Ok(matches)
-//     }
-// }
-
 /// Decrypts the file into a `Vec` of `String`s. This will return an `Err` if
-/// the plaintext is not validly UTF8 encoded.
-pub fn decrypt_file_into_strings<S>(file: S) -> Result<Vec<String>>
+/// the plaintext is not encoded in valid UTF8.
+pub fn decrypt_file_into_strings<P>(path: P) -> Result<Vec<String>>
 where
-    S: AsRef<str>,
+    P: AsRef<Path>,
 {
-    // TODO: verify signature (if it exists) -- {file}.sig
-    let file = file.as_ref();
+    let path = path.as_ref();
+    let mut bytes = Vec::new();
+    let mut file = fs::File::open(path)?;
+    file.read_to_end(&mut bytes)?;
 
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
-    let mut cipher = Data::load(file)?;
+
+    if !PASSWORD_STORE_SIGNING_KEY.is_empty() {
+        let sigfile = match fs::File::open(format!("{}.sig", path.display())) {
+            Ok(file) => file,
+            Err(_) => return Err(PassrsError::MissingSignature(path.display().to_string()).into()),
+        };
+        let res = ctx.verify_detached(sigfile, &bytes)?;
+
+        for signature in res.signatures() {
+            match signature.status() {
+                Ok(_) => {}
+                Err(e) => match e.code() {
+                    8 => return Err(PassrsError::BadSignature(path.display().to_string()).into()),
+                    code => return Err(GpgError::from_code(code).into()),
+                },
+            }
+        }
+    }
+
+    let mut cipher = Data::from_bytes(bytes)?;
     let mut plain = Vec::new();
     ctx.decrypt(&mut cipher, &mut plain)?;
 
@@ -213,40 +202,40 @@ where
 }
 
 /// Decrypts the given file into a `Vec` of bytes.
-pub fn decrypt_file_into_bytes<S>(file: S) -> Result<Vec<u8>>
+pub fn decrypt_file_into_bytes<P>(path: P) -> Result<Vec<u8>>
 where
-    S: AsRef<Path>,
+    P: AsRef<Path>,
 {
-    // TODO: verify signature (if it exists) -- {file}.sig
-    let file = file.as_ref();
-
+    let path = path.as_ref();
     let mut bytes = Vec::new();
-    let mut file = fs::File::open(file)?;
+    let mut file = fs::File::open(path)?;
     file.read_to_end(&mut bytes)?;
 
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
+
+    if !PASSWORD_STORE_SIGNING_KEY.is_empty() {
+        let sigfile = match fs::File::open(format!("{}.sig", path.display())) {
+            Ok(file) => file,
+            Err(_) => return Err(PassrsError::MissingSignature(path.display().to_string()).into()),
+        };
+        let res = ctx.verify_detached(sigfile, &bytes)?;
+
+        for signature in res.signatures() {
+            match signature.status() {
+                Ok(_) => {}
+                Err(e) => match e.code() {
+                    8 => return Err(PassrsError::BadSignature(path.display().to_string()).into()),
+                    code => return Err(gpgme::error::Error::from_code(code).into()),
+                },
+            }
+        }
+    }
+
     let mut cipher = Data::from_bytes(bytes)?;
     let mut plain = Vec::new();
     ctx.decrypt(&mut cipher, &mut plain)?;
 
     Ok(plain)
-}
-
-/// Creates all directories to allow `file` to be created.
-pub fn create_descending_dirs<S>(file: S) -> Result<()>
-where
-    S: AsRef<Path>,
-{
-    let file = file.as_ref();
-    let file = file.display().to_string();
-    let sep = file
-        .rfind('/')
-        .with_context(|| format!("No folder found in file {}", file))?;
-    let dir = &file[..sep];
-    fs::create_dir_all(dir)?;
-    // TODO: set permissions according to PASSWORD_STORE_UMASK
-
-    Ok(())
 }
 
 // TODO: better names
@@ -260,10 +249,12 @@ pub enum FileMode {
 /// `.gpg-id`. Callers must verify that `PASSWORD_STORE_DIR` exists and is
 /// initialized using `verify_store_exists`. If `append` is true, append the
 /// bytes; otherwise, overwrite the file.
-pub fn encrypt_bytes_into_file<S>(to_encrypt: &[u8], path: S, append: FileMode) -> Result<()>
+pub fn encrypt_bytes_into_file<P, V>(to_encrypt: V, path: P, append: FileMode) -> Result<()>
 where
-    S: AsRef<Path>,
+    P: AsRef<Path>,
+    V: AsRef<[u8]>,
 {
+    let to_encrypt = to_encrypt.as_ref();
     let path = path.as_ref();
     self::create_descending_dirs(&path)?;
 
@@ -273,10 +264,10 @@ where
         path.parent()
             .with_context(|| format!("{} didn't have a parent", path.display()))?,
     ) {
-        Result::Ok(parent) => fs::OpenOptions::new()
+        Ok(parent) => fs::OpenOptions::new()
             .read(true)
             .open(&format!("{}/.gpg-id", parent.display()))?,
-        Result::Err(_) => fs::OpenOptions::new().read(true).open(&*GPG_ID_FILE)?,
+        Err(_) => fs::OpenOptions::new().read(true).open(&*GPG_ID_FILE)?,
     };
 
     dbg!(&id_file);
@@ -291,7 +282,7 @@ where
 
     let encryption_keys = keys
         .iter()
-        .map(|k| ctx.get_key(k))
+        .map(|k| ctx.get_secret_key(k))
         .filter_map(|k| k.ok())
         .collect::<Vec<_>>();
 
@@ -303,7 +294,7 @@ where
 
     for key in signing_keys {
         ctx.add_signer(&key)
-            .with_context(|| format!("Failed to add key {} as signer", key.id().unwrap()))?;
+            .with_context(|| format!("Failed to add key {:?} as signer", key.id()))?;
     }
 
     if encryption_keys.is_empty() {
@@ -322,7 +313,7 @@ where
 
         let mut encrypted_contents: Vec<u8> = Vec::new();
         let mut file = fs::OpenOptions::new()
-            .mode(0o600)
+            .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
             .write(true)
             .create(true)
             .open(&path)?;
@@ -339,7 +330,7 @@ where
             let signature = format!("{}.sig", path.display());
             let mut outbuf: Vec<u8> = Vec::new();
             let mut file = fs::OpenOptions::new()
-                .mode(0o600)
+                .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
                 .truncate(true)
                 .write(true)
                 .create(true)
@@ -348,6 +339,65 @@ where
             ctx.sign_detached(&encrypted_contents, &mut outbuf)?;
             file.write_all(&outbuf)?;
         }
+    }
+
+    Ok(())
+}
+
+/// Creates all directories to allow `file` to be created.
+pub fn create_descending_dirs<P>(path: P) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    self::check_sneaky_paths(&path)?;
+
+    if fs::metadata(&path).is_ok() {
+        return Ok(()); // path already exists
+    }
+
+    let path = path.display().to_string();
+    let sep = path
+        .rfind('/')
+        .with_context(|| format!("No folder found in file {}", path))?;
+    let dir = &path[..sep];
+
+    fs::create_dir_all(dir)?;
+    self::set_umask_recursive(&path)?;
+
+    Ok(())
+}
+
+pub fn set_umask_recursive<P>(path: P) -> Result<()>
+where
+    P: AsRef<Path>,
+{
+    let path = path.as_ref();
+    self::check_sneaky_paths(&path)?;
+
+    if path == PathBuf::from(&*PASSWORD_STORE_DIR) {
+        return Ok(());
+    }
+    if path == PathBuf::from("/dev/shm/") {
+        return Ok(());
+    }
+
+    if path.is_dir() {
+        let mut perms = fs::metadata(&path)
+            .with_context(|| format!("path {} does not exist", &path.display()))?
+            .permissions();
+
+        perms.set_mode(perms.mode() - (perms.mode() & *PASSWORD_STORE_UMASK));
+        fs::set_permissions(&path, perms)?;
+        self::set_umask_recursive(
+            path.parent()
+                .with_context(|| "Path did not have a parent")?,
+        )?;
+    } else {
+        self::set_umask_recursive(
+            path.parent()
+                .with_context(|| "Path did not have a parent")?,
+        )?;
     }
 
     Ok(())
@@ -370,7 +420,6 @@ where
             .unwrap_or(false);
         if show {
             if let (Some(parent), Some(name)) = (path.parent(), path.file_name()) {
-                // dbg!(&parent, &name);
                 if name == ".gpg-id" {
                     return Ok(parent.to_path_buf());
                 }
@@ -379,19 +428,6 @@ where
     }
 
     Err(PassrsError::NoGpgIdFile(dir.display().to_string()).into())
-}
-
-fn git_open<S>(path: S) -> Result<Repository>
-where
-    S: AsRef<str>,
-{
-    let path = path.as_ref();
-
-    self::check_sneaky_paths(&path)?;
-
-    let repo = Repository::open(path)?;
-
-    Ok(repo)
 }
 
 /// Commit everything using `commit_message` as the message, if the workspace is
@@ -403,13 +439,14 @@ where
     S: AsRef<str>,
 {
     // TODO:
+    // `git show -s --format='[{BRANCH} %h] %B' && git diff --shortstat --summary HEAD^`
     // [master 5a5604a] Add generated password for test.
     //  1 file changed, 0 insertions(+), 0 deletions(-)
     //  create mode 100644 test.gpg
     let path = &*PASSWORD_STORE_DIR;
     let commit_message = commit_message.as_ref();
 
-    if let Ok(repo) = git_open(path) {
+    if let Ok(repo) = Repository::open(path) {
         if repo.statuses(None)?.is_empty() {
             dbg!("Nothing to do");
             return Ok(());
@@ -425,11 +462,25 @@ where
         let sig = repo.signature()?;
         let mut parents = Vec::new();
 
-        if let Some(parent) = repo.head().ok().map(|h| h.target().unwrap()) {
+        if let Some(parent) = repo.head().ok().map(|h| {
+            h.target()
+                .expect("git2 reference didn't have a valid target")
+        }) {
             parents.push(repo.find_commit(parent)?);
         }
 
         let parents = parents.iter().collect::<Vec<_>>();
+
+        // NOTE: this creates a non-PGP-signed commit.
+        // let commit = repo.commit(
+        //     Some("HEAD"),
+        //     &sig,
+        //     &sig,
+        //     &commit_message,
+        //     &repo.find_tree(tree_id)?,
+        //     &parents,
+        // )?;
+
         let buf = repo.commit_create_buffer(
             &sig,
             &sig,
@@ -440,7 +491,7 @@ where
         let mut outbuf = Vec::new();
 
         ctx.set_armor(true);
-        ctx.sign(SignMode::Detached, &*buf, &mut outbuf)?;
+        ctx.sign_detached(&*buf, &mut outbuf)?;
 
         let contents = buf.as_str().with_context(|| "Buffer was not valid UTF-8")?;
         let out = str::from_utf8(&outbuf)?;
@@ -491,8 +542,7 @@ where
             return Err(PassrsError::SourceIsDestination.into());
         }
 
-        // TODO: set permissions according to PASSWORD_STORE_UMASK
-        fs::create_dir_all(dest)?;
+        fs::create_dir_all(&dest)?;
         // println!("created directory {}", &dest.display());
 
         if root.is_none() {
@@ -502,13 +552,15 @@ where
         // println!("'{}' -> '{}'", &source.display(), &dest.display());
         for entry in fs::read_dir(source)? {
             let entry = entry?.path();
-            let name = entry.file_name().unwrap();
+            let name = entry
+                .file_name()
+                .with_context(|| "Entry did not contain valid filename")?;
             self::copy(&entry, &dest.join(name), root)?;
         }
 
         fs::set_permissions(dest, meta.permissions())?;
     } else {
-        // not file or dir
+        // not file or dir (probably -> doesn't exist)
     }
 
     Ok(())
@@ -520,18 +572,17 @@ where
 {
     let set = set.as_ref();
     let mut rng = rand::thread_rng();
-
-    let mut password_bytes = Vec::with_capacity(len);
+    let mut secret_bytes = Vec::with_capacity(len);
 
     for _ in 0..len {
         let idx = rng.gen_range(0, set.len());
-        password_bytes.push(set[idx]);
+        secret_bytes.push(set[idx]);
     }
 
-    Ok(password_bytes)
+    Ok(secret_bytes)
 }
 
-pub fn prompt_for_secret<S>(echo: bool, secret_name: S) -> Result<Option<String>>
+pub fn prompt_for_secret<S>(echo: bool, multiline: bool, secret_name: S) -> Result<Option<String>>
 where
     S: AsRef<str>,
 {
@@ -552,6 +603,19 @@ where
         }
 
         input
+    } else if multiline {
+        writeln!(
+            stdout,
+            "Enter the contents of {} and press Ctrl-D when finished:\n",
+            secret_name
+        )?;
+        let mut input = Vec::new();
+
+        for line in stdin.lines() {
+            input.push(line?);
+        }
+
+        Some(input.join("\n"))
     } else {
         write!(stdout, "Enter secret for {}: ", secret_name)?;
         io::stdout().flush()?;
