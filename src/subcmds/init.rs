@@ -3,7 +3,7 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::str;
 
 use anyhow::{Context as _, Result};
@@ -11,7 +11,8 @@ use git2::Repository;
 use gpgme::{Context, Data, Protocol, SignMode};
 
 use crate::consts::{
-    PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_SIGNING_KEY, PASSWORD_STORE_UMASK,
+    PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_LEN, PASSWORD_STORE_SIGNING_KEY,
+    PASSWORD_STORE_STRING, PASSWORD_STORE_UMASK,
 };
 use crate::util;
 use crate::PassrsError;
@@ -22,12 +23,15 @@ pub fn init(path: Option<String>, keys: Vec<String>) -> Result<()> {
     } else {
         &keys
     };
-    let store = PASSWORD_STORE_DIR.to_owned();
+    let store = &*PASSWORD_STORE_DIR;
 
     // If store doesn't exist, create it
     if !util::path_exists(&store)? {
         if let Some(path) = path {
-            println!("Ignoring path {}; creating store at {}", path, &store);
+            println!(
+                "Ignoring path {}; creating store at {}",
+                path, *PASSWORD_STORE_STRING
+            );
         }
 
         self::create_store(store, &keys)?;
@@ -65,7 +69,7 @@ pub fn init(path: Option<String>, keys: Vec<String>) -> Result<()> {
                 // need to commit everything -- just use util::commit
                 util::commit(format!(
                     "Re-encrypt {} using new GPG ID {}",
-                    &substore_path.display().to_string()[PASSWORD_STORE_DIR.len()..],
+                    &substore_path.display().to_string()[*PASSWORD_STORE_LEN..],
                     &new_keys,
                 ))
                 .with_context(|| "Failed to commit re-encrypting substore")?;
@@ -116,7 +120,7 @@ where
             if let Some(name) = file_name {
                 dbg!(&path);
                 if name == ".gpg-id" {
-                    if *path == PathBuf::from(format!("{}.gpg-id", *PASSWORD_STORE_DIR)) {
+                    if *path == *PASSWORD_STORE_DIR.join(".gpg-id") {
                         continue;
                     }
                     break;
@@ -249,15 +253,14 @@ where
 
     for key in gpg_keys {
         if let Ok(secret_key) = ctx.get_secret_key(key) {
-            let user_id = if let Ok(email) = secret_key
+            let user_id = match secret_key
                 .user_ids()
-                .nth(0)
+                .next()
                 .with_context(|| "Option did not contain a value.")?
                 .email()
             {
-                email.to_owned()
-            } else {
-                key.to_owned()
+                Ok(email) => email.to_owned(),
+                _ => key.to_owned(),
             };
 
             keys.push(user_id);
@@ -381,7 +384,6 @@ where
     Ok(())
 }
 
-// TODO: abstract away so most of the innards can be used for setup_store
 fn create_substore<P, Q, S>(store: P, path: Q, gpg_keys: S) -> Result<()>
 where
     P: AsRef<Path>,
@@ -423,7 +425,7 @@ where
             &format!(
                 "Set GPG ID to {} ({})",
                 gpg_keys.join(", "),
-                &path.display().to_string()[PASSWORD_STORE_DIR.len()..]
+                &path.display().to_string()[*PASSWORD_STORE_LEN..]
             ),
             &repo.find_tree(tree_id)?,
             &parents,
@@ -446,7 +448,7 @@ where
             &format!(
                 "Set GPG ID to {} ({})",
                 gpg_keys.join(", "),
-                &path.display().to_string()[PASSWORD_STORE_DIR.len()..]
+                &path.display().to_string()[*PASSWORD_STORE_LEN..]
             ),
         )?;
 

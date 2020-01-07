@@ -51,7 +51,7 @@ impl Ui {
                     entry.truncate(entry.len() - 4);
                 }
                 // Don't show PASSWORD_STORE_DIR in entry name
-                entry[PASSWORD_STORE_DIR.len()..].to_owned()
+                entry[PASSWORD_STORE_DIR.display().to_string().len()..].to_owned()
             })
             .collect::<Vec<_>>();
 
@@ -88,7 +88,7 @@ impl Ui {
 /// | entry 3                                                  |
 /// +----------------------------------------------------------+
 /// | <↑/↓> to change the selection, <→> to show, <←> to copy, |
-/// | ~~<s> to sync~~, <e> to edit, <ESC> to quit              |
+/// | <e> to edit, <ESC> to quit                               |
 /// +----------------------------------------------------------+
 fn display_matches(matches: Vec<String>) -> Result<UiResult> {
     let bin_path = env::current_exe()?;
@@ -101,14 +101,13 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
     let mut app = Ui::new(matches.clone());
     let mut entry = None;
 
-    // `terminal` gets dropped at the end of the scope, allowing stdout to work
-    // as expected
     let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
     let stdout = AlternateScreen::from(stdout);
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
     let events = Events::new();
+
     terminal.hide_cursor()?;
     terminal.clear()?;
 
@@ -124,17 +123,15 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
                     .constraints(
                         [
                             Constraint::Length(3), // number of cells
-                            // Constraint::Length(par1), // number of cells
                             Constraint::Percentage(50),
                             Constraint::Length(3), // number of cells
-                            // Constraint::Length(par2), // number of cells
                             Constraint::Percentage(50),
                         ]
                             .as_ref(),
                     )
                     .split(size);
                 Paragraph::new(
-                    vec![Text::raw(format!(
+                    [Text::raw(format!(
                         "Found {} matching secrets. Please select an entry.",
                         app.entries.len()
                     ))]
@@ -144,7 +141,6 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
                            .title(binary_name)
                            .title_style(Style::default().fg(Color::Red))
                            .borders(Borders::ALL))
-                    // TODO: change constraints when the terminal shrinks/grows
                     .wrap(true)
                     .render(&mut frame, chunks[0]);
                 SelectableList::default()
@@ -155,13 +151,12 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
                     .highlight_symbol(">")
                     .render(&mut frame, chunks[1]);
                 Paragraph::new(
-                    vec![Text::raw(
+                    [Text::raw(
                         "<↑/↓> to change the selection, <→> to show, <←> to copy, <e> to edit, <ESC> or <q> to quit",
                     )]
                         .iter(),
                 )
                     .block(Block::default().borders(Borders::ALL))
-                    // TODO: change constraints when the terminal shrinks/grows
                     .wrap(true)
                     .render(&mut frame, chunks[2]);
             })?;
@@ -188,7 +183,8 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
                     if let Some(entry) = app.selected {
                         let entry = matches[entry].to_owned();
                         let mut contents = util::decrypt_file_into_strings(&entry)?;
-                        clipboard::clip(&contents[0])?;
+
+                        clipboard::clip(&contents[0], false)?;
                         contents.zeroize();
 
                         return Ok(UiResult::CopiedToClipboard(entry));
@@ -243,6 +239,7 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
             Event::Tick => {}
         }
     }
+
     terminal.show_cursor()?;
 
     // drop terminal so we can use stdout as usual
@@ -251,14 +248,8 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
 
     // If user didn't select an entry with enter or right arrow, it was a cancellation
     if let Some(entry) = entry {
-        // println!("{}", &matches[entry]);
         Ok(UiResult::Success(matches[entry].to_owned()))
     } else {
-        // println!(
-        //     "{red}Error: user aborted{reset}",
-        //     red = color::Fg(color::Red),
-        //     reset = style::Reset
-        // );
         Err(PassrsError::UserAbort.into())
     }
 }
@@ -270,9 +261,6 @@ pub fn display_matches_for_target(target: &str) -> Result<UiResult> {
         return Ok(UiResult::Success(matches[0].to_owned()));
     }
 
-    // TODO: color or no color?
-    // if I can find a way to add color to the failure display messages, color;
-    // else, no color
     eprintln!(
         "{yellow}Entry '{}' not found. Starting search...{reset}\n",
         &target,
@@ -282,11 +270,3 @@ pub fn display_matches_for_target(target: &str) -> Result<UiResult> {
 
     Ok(display_matches(matches)?)
 }
-
-// pub fn display_matches_for_targets(matches: Vec<String>) -> Result<UiResult> {
-//     if matches.len() == 1 {
-//         return Ok(UiResult::Success(matches[0].to_owned()));
-//     }
-
-//     Ok(display_matches(matches)?)
-// }

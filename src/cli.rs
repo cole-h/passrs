@@ -25,7 +25,6 @@ enum PassSubcmd {
     /// Initialize new password store and use the provided gpg-id for
     /// encryption.
     Init {
-        #[structopt(required = true)]
         /// The gpg-id(s) to encrypt the store with.
         gpg_ids: Vec<String>,
         #[structopt(long, short = "p")]

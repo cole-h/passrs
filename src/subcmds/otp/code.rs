@@ -25,7 +25,7 @@ pub fn code(clip: bool, pass_name: String) -> Result<()> {
         let code = generate_totp(base32_secret, period, algorithm, digits)?;
 
         if clip {
-            clipboard::clip(&code)?;
+            clipboard::clip(&code, false)?;
         } else {
             println!("{}", code);
         }

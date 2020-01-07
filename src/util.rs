@@ -16,8 +16,8 @@ use termion::input::TermRead;
 use walkdir::WalkDir;
 
 use crate::consts::{
-    GPG_ID_FILE, HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_SIGNING_KEY,
-    PASSWORD_STORE_UMASK,
+    GPG_ID_FILE, HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_LEN,
+    PASSWORD_STORE_SIGNING_KEY, PASSWORD_STORE_STRING, PASSWORD_STORE_UMASK,
 };
 use crate::PassrsError;
 
@@ -28,8 +28,8 @@ where
 {
     let path = path.as_ref();
     let mut path = path.replace("~", &HOME);
-    if !path.contains(&*PASSWORD_STORE_DIR) {
-        path = [PASSWORD_STORE_DIR.to_owned(), path].concat();
+    if !path.contains(&*PASSWORD_STORE_STRING) {
+        path = [&*PASSWORD_STORE_STRING, path.as_str()].concat();
     }
 
     self::check_sneaky_paths(&path)?;
@@ -59,8 +59,8 @@ where
 {
     let path = path.as_ref();
     let mut path = path.replace("~", &HOME);
-    if !path.contains(&*PASSWORD_STORE_DIR) {
-        path = [PASSWORD_STORE_DIR.to_owned(), path].concat();
+    if !path.contains(&*PASSWORD_STORE_STRING) {
+        path = [&*PASSWORD_STORE_STRING, path.as_str()].concat();
     }
 
     self::check_sneaky_paths(&path)?;
@@ -148,7 +148,7 @@ where
             return Ok(vec![path.to_owned()]);
         }
 
-        if path.ends_with(".gpg") && is_file && path[PASSWORD_STORE_DIR.len()..].contains(target) {
+        if path.ends_with(".gpg") && is_file && path[*PASSWORD_STORE_LEN..].contains(target) {
             matches.push(path.to_owned());
         }
     }
@@ -240,7 +240,7 @@ where
 
 // TODO: better names
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileMode {
+pub enum EditMode {
     Clobber,
     Append,
 }
@@ -249,7 +249,7 @@ pub enum FileMode {
 /// `.gpg-id`. Callers must verify that `PASSWORD_STORE_DIR` exists and is
 /// initialized using `verify_store_exists`. If `append` is true, append the
 /// bytes; otherwise, overwrite the file.
-pub fn encrypt_bytes_into_file<P, V>(to_encrypt: V, path: P, append: FileMode) -> Result<()>
+pub fn encrypt_bytes_into_file<P, V>(to_encrypt: V, path: P, editmode: EditMode) -> Result<()>
 where
     P: AsRef<Path>,
     V: AsRef<[u8]>,
@@ -302,7 +302,7 @@ where
     } else {
         let mut to_be_encrypted: Vec<u8> = Vec::new();
 
-        if append == FileMode::Append {
+        if editmode == EditMode::Append {
             let mut to_be_decrypted = Data::load(path.display().to_string())?;
 
             ctx.decrypt(&mut to_be_decrypted, &mut to_be_encrypted)?;
@@ -375,10 +375,11 @@ where
     let path = path.as_ref();
     self::check_sneaky_paths(&path)?;
 
-    if path == PathBuf::from(&*PASSWORD_STORE_DIR) {
-        return Ok(());
-    }
-    if path == PathBuf::from("/dev/shm/") {
+    // We don't want to change permissions of the store because they should
+    // already be fine and would conflict with any potential substore-specific
+    // permissions. The user probably doesn't own /dev/shm (our "secure"
+    // tempdir), so that would error out.
+    if path == PathBuf::from(&*PASSWORD_STORE_DIR) || path == PathBuf::from("/dev/shm") {
         return Ok(());
     }
 
@@ -386,6 +387,9 @@ where
         let mut perms = fs::metadata(&path)
             .with_context(|| format!("path {} does not exist", &path.display()))?
             .permissions();
+
+        // TODO: check if user owns path -- error if not
+        // (would allow shortening the short circuit above)
 
         perms.set_mode(perms.mode() - (perms.mode() & *PASSWORD_STORE_UMASK));
         fs::set_permissions(&path, perms)?;

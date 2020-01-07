@@ -11,6 +11,8 @@ use crate::util;
 use crate::PassrsError;
 
 // TODO: `pass rm` also removes the pathspec from the repo
+//   I think this is unncessary since we add everything to the index in
+//   util::commit anyways
 pub fn rm(recursive: bool, force: bool, pass_name: String) -> Result<()> {
     let path = util::canonicalize_path(&pass_name)?;
 

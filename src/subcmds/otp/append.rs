@@ -2,7 +2,7 @@ use anyhow::Result;
 
 use crate::subcmds::otp::validate;
 use crate::util;
-use crate::util::FileMode;
+use crate::util::EditMode;
 
 pub fn append(
     echo: bool,
@@ -36,7 +36,7 @@ pub fn append(
             }
 
             validate::validate(&secret)?;
-            util::encrypt_bytes_into_file(secret.as_bytes(), path, FileMode::Append)?;
+            util::encrypt_bytes_into_file(secret.as_bytes(), path, EditMode::Append)?;
             util::commit(format!("Append OTP secret for {}", secret_name))?;
         }
     } else {
@@ -44,7 +44,7 @@ pub fn append(
 
         if let Some(secret) = secret {
             validate::validate(&secret)?;
-            util::encrypt_bytes_into_file(secret.as_bytes(), path, FileMode::Append)?;
+            util::encrypt_bytes_into_file(secret.as_bytes(), path, EditMode::Append)?;
             util::commit(format!("Append OTP secret for {}", secret_name))?;
         }
     }

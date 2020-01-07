@@ -3,13 +3,17 @@
 use std::env;
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::thread;
+use std::time;
 
 use anyhow::{Context, Result};
+use data_encoding::HEXLOWER;
+use ring::digest;
 
-use crate::consts::PASSWORD_STORE_X_SELECTION;
+use crate::consts::{PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_X_SELECTION};
 use crate::PassrsError;
 
-pub fn clip<S>(contents: S) -> Result<()>
+pub fn clip<S>(contents: S, force: bool) -> Result<()>
 where
     S: AsRef<[u8]>,
 {
@@ -35,6 +39,21 @@ where
     } else {
         return Err(PassrsError::ClipFailed.into());
     }
+
+    let hash = HEXLOWER.encode(digest::digest(&digest::SHA256, &contents).as_ref());
+    let args = [
+        "unclip",
+        &PASSWORD_STORE_CLIP_TIME,
+        if force { "--force" } else { "--" },
+    ];
+
+    // Otherwise, the process doesn't live long enough to spawn the unclip
+    // daemon
+    thread::sleep(time::Duration::from_millis(50));
+    Command::new(env::current_exe()?)
+        .args(&args)
+        .env("PASSRS_UNCLIP_HASH", hash)
+        .spawn()?;
 
     Ok(())
 }

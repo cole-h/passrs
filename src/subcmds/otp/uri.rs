@@ -18,14 +18,15 @@ pub fn uri(clip: bool, qr_path: Option<String>, pass_name: String) -> Result<()>
         let otp = otp.first().with_context(|| "File was empty")?.trim();
 
         if clip {
-            clipboard::clip(otp)?;
+            clipboard::clip(otp, false)?;
         }
         if let Some(qr_path) = qr_path {
             let code = QrCode::new(otp.as_bytes())?;
             let svg_xml = code.render::<svg::Color>().build();
 
-            // TODO: util::create_recursive_dirs(&qr_path)?;
-            let mut file = File::create(&qr_path)?;
+            // If the user specifies a path that doesn't exist, we'll error out
+            let mut file = File::create(&qr_path)
+                .with_context(|| "Failed to create QR SVG. Path doesn't exist?")?;
             file.write_all(svg_xml.as_bytes())?;
 
             println!("Image created at {}.", qr_path);

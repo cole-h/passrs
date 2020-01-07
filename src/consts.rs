@@ -1,5 +1,6 @@
 //! Technically not actual constants, but runtime constants.
 use std::env;
+use std::path::PathBuf;
 
 use once_cell::sync::Lazy;
 
@@ -26,34 +27,36 @@ pub static EDITOR: Lazy<String> = Lazy::new(|| {
     } else if let Ok(visual) = env::var("VISUAL") {
         visual
     } else {
-        "/usr/bin/vi".to_owned()
+        String::from("/usr/bin/vi")
     }
 });
 // FIXME: remove in favor of PASSWORD_STORE_DIR (only used for debugging rn)
 #[cfg(debug_assertions)]
-pub static DEFAULT_STORE_PATH: Lazy<String> = Lazy::new(|| "/tmp/passrstest/".to_owned());
+pub static DEFAULT_STORE_PATH: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/passrstest/"));
 
 #[cfg(not(debug_assertions))]
-pub static DEFAULT_STORE_PATH: Lazy<String> = Lazy::new(|| match env::var("PASSWORD_STORE_DIR") {
-    Ok(store) => {
-        if !store.ends_with('/') {
-            store + "/"
-        } else {
-            store
-        }
-    }
-    Err(_) => format!("{}/.password-store/", *HOME),
+pub static DEFAULT_STORE_PATH: Lazy<PathBuf> = Lazy::new(|| match env::var("PASSWORD_STORE_DIR") {
+    Ok(store) => PathBuf::from(store),
+    Err(_) => PathBuf::from(format!("{}/.password-store/", *HOME)),
 });
 
-pub static GPG_ID_FILE: Lazy<String> = Lazy::new(|| [&PASSWORD_STORE_DIR, ".gpg-id"].concat());
+pub static GPG_ID_FILE: Lazy<PathBuf> =
+    Lazy::new(|| PathBuf::from(&*PASSWORD_STORE_DIR.join(".gpg-id")));
 pub static PASSRS_UNCLIP_HASH: Lazy<String> =
     Lazy::new(|| env::var("PASSRS_UNCLIP_HASH").unwrap_or_default());
 pub static PASSRS_GIT_BINARY: Lazy<String> =
-    Lazy::new(|| env::var("PASSRS_GIT_BINARY").unwrap_or_else(|_| "/usr/bin/git".to_owned()));
+    Lazy::new(|| env::var("PASSRS_GIT_BINARY").unwrap_or_else(|_| String::from("/usr/bin/git")));
+// used to allow comparisons with the password store dir without having to convert it w/ to_string()
+pub static PASSWORD_STORE_STRING: Lazy<String> =
+    Lazy::new(|| PASSWORD_STORE_DIR.display().to_string());
+// used to prevent the need to litter `PASSWORD_STORE_DIR.display().to_string().len()` everywhere
+pub static PASSWORD_STORE_LEN: Lazy<usize> = Lazy::new(|| PASSWORD_STORE_STRING.len());
 
 // pass(1)
-pub static PASSWORD_STORE_DIR: Lazy<String> =
-    Lazy::new(|| env::var("PASSWORD_STORE_DIR").unwrap_or_else(|_| DEFAULT_STORE_PATH.to_owned()));
+pub static PASSWORD_STORE_DIR: Lazy<PathBuf> = Lazy::new(|| match env::var("PASSWORD_STORE_DIR") {
+    Ok(store) => PathBuf::from(store),
+    Err(_) => DEFAULT_STORE_PATH.to_path_buf(),
+});
 pub static PASSWORD_STORE_KEY: Lazy<Vec<String>> = Lazy::new(|| {
     let keys = env::var("PASSWORD_STORE_KEY").unwrap_or_default();
     keys.split(' ')
@@ -61,8 +64,6 @@ pub static PASSWORD_STORE_KEY: Lazy<Vec<String>> = Lazy::new(|| {
         .map(ToOwned::to_owned)
         .collect::<Vec<_>>()
 });
-// NOTE: Wayland is the target for this, which doesn't use the X clipboard.
-// However, this will be implemented when I get around to cleaning up clipboard.rs
 pub static PASSWORD_STORE_X_SELECTION: Lazy<String> =
     Lazy::new(|| match env::var("PASSWORD_STORE_X_SELECTION") {
         Ok(sel) => match sel.as_ref() {

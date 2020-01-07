@@ -9,7 +9,7 @@ use termion::style;
 use walkdir::WalkDir;
 use zeroize::Zeroize;
 
-use crate::consts::{HOME, PASSWORD_STORE_DIR};
+use crate::consts::{HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_LEN};
 use crate::util;
 
 // Takes ~40 seconds to search the entirety of my ~400 file store
@@ -65,7 +65,7 @@ pub fn grep(search: String) -> Result<()> {
             .rfind('/')
             .with_context(|| "Path did not contain a folder")?
             + 1;
-        let pre = path[PASSWORD_STORE_DIR.len()..separator].replace(&*HOME, "~");
+        let pre = path[*PASSWORD_STORE_LEN..separator].replace(&*HOME, "~");
         // We guarantee all paths end in .gpg by this point, so we can cut it
         // off without a problem (famous last words)
         let file = &path[separator..path.len() - 4];

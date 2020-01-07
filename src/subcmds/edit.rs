@@ -13,7 +13,7 @@ use zeroize::Zeroize;
 
 use crate::consts::{EDITOR, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, PASSWORD_STORE_UMASK};
 use crate::util;
-use crate::util::FileMode;
+use crate::util::EditMode;
 use crate::PassrsError;
 
 pub fn edit(pass_name: String) -> Result<()> {
@@ -91,7 +91,7 @@ pub fn edit(pass_name: String) -> Result<()> {
     // 5c. If the hashes are different, we are clear to proceed
 
     // 6. Encrypt contents of temp_file to file in store
-    util::encrypt_bytes_into_file(&new_contents, &file, FileMode::Clobber)?;
+    util::encrypt_bytes_into_file(&new_contents, &file, EditMode::Clobber)?;
     new_contents.zeroize();
     util::commit(format!("Edit secret for {} using {}", pass_name, *EDITOR))?;
 
@@ -110,6 +110,8 @@ fn temp_file<S>(path: S) -> Result<String>
 where
     S: AsRef<str>,
 {
+    // TODO: If /dev/shm is not accessible, fallback to the ordinary TMPDIR
+    //   location, and print a warning.
     assert!(PathBuf::from("/dev/shm/").metadata().is_ok());
 
     let path = path.as_ref();

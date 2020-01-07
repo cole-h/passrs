@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use crate::consts::PASSWORD_STORE_DIR;
+use crate::consts::PASSWORD_STORE_LEN;
 use crate::util;
 use crate::PassrsError;
 
@@ -21,9 +21,9 @@ pub fn find(name: String) -> Result<()> {
     if !matches.is_empty() {
         for matched in &matches {
             if matched.ends_with(".gpg") {
-                println!("{}", &matched[PASSWORD_STORE_DIR.len()..matched.len() - 4]);
+                println!("{}", &matched[*PASSWORD_STORE_LEN..matched.len() - 4]);
             } else {
-                println!("{}", &matched[PASSWORD_STORE_DIR.len()..]);
+                println!("{}", &matched[*PASSWORD_STORE_LEN..]);
             }
         }
     } else if matches.is_empty() {
@@ -36,9 +36,9 @@ pub fn find(name: String) -> Result<()> {
             } else {
                 for found in fuzzy {
                     if found.ends_with(".gpg") {
-                        println!("{}", &found[PASSWORD_STORE_DIR.len()..found.len() - 4]);
+                        println!("{}", &found[*PASSWORD_STORE_LEN..found.len() - 4]);
                     } else {
-                        println!("{}", &found[PASSWORD_STORE_DIR.len()..]);
+                        println!("{}", &found[*PASSWORD_STORE_LEN..]);
                     }
                 }
             }

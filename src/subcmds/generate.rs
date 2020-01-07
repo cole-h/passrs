@@ -1,16 +1,10 @@
-use std::env;
 use std::fs;
 use std::io;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
-use std::process::Command;
 use std::str;
-use std::thread;
-use std::time;
 
 use anyhow::Result;
-use data_encoding::HEXLOWER;
-use ring::digest;
 use termion::color;
 use termion::input::TermRead;
 use termion::style;
@@ -18,10 +12,10 @@ use termion::style;
 use crate::clipboard;
 use crate::consts::{
     PASSWORD_STORE_CHARACTER_SET, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS,
-    PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_GENERATED_LENGTH, PASSWORD_STORE_UMASK,
+    PASSWORD_STORE_GENERATED_LENGTH, PASSWORD_STORE_UMASK,
 };
 use crate::util;
-use crate::util::FileMode;
+use crate::util::EditMode;
 use crate::PassrsError;
 
 pub fn generate(
@@ -86,22 +80,7 @@ pub fn generate(
     );
 
     if clip {
-        let hash = HEXLOWER.encode(digest::digest(&digest::SHA256, &password_bytes).as_ref());
-        let args = vec![
-            "unclip",
-            if force { "--force" } else { "" },
-            &PASSWORD_STORE_CLIP_TIME,
-        ];
-        let args = args.iter().filter(|&&x| x != "").collect::<Vec<_>>();
-
-        clipboard::clip(&password)?;
-        // Otherwise, the process doesn't live long enough to spawn the unclip
-        // daemon
-        thread::sleep(time::Duration::from_millis(50));
-        Command::new(env::current_exe()?)
-            .args(args)
-            .env("PASSRS_UNCLIP_HASH", hash)
-            .spawn()?;
+        clipboard::clip(&password, force)?;
     }
 
     if in_place {
@@ -111,10 +90,10 @@ pub fn generate(
         let existing = existing.join("\n");
         let existing = existing.as_bytes();
 
-        util::encrypt_bytes_into_file(existing, &path, FileMode::Clobber)?;
+        util::encrypt_bytes_into_file(existing, &path, EditMode::Clobber)?;
         util::commit(format!("Replace generated secret for {}", pass_name))?;
     } else {
-        util::encrypt_bytes_into_file(&password_bytes, &path, FileMode::Clobber)?;
+        util::encrypt_bytes_into_file(&password_bytes, &path, EditMode::Clobber)?;
         util::commit(format!("Save generated secret for {}", pass_name))?;
     }
 

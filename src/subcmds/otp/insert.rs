@@ -9,22 +9,18 @@ use termion::input::TermRead;
 use crate::consts::PASSWORD_STORE_UMASK;
 use crate::subcmds::otp::validate;
 use crate::util;
-use crate::util::FileMode;
+use crate::util::EditMode;
 use crate::PassrsError;
 
-// TODO: pass otp insert -e -i goo => insert otpauth:// URI
+// TODO: this isn't exactly how pass-otp does it, so investigate whether it's
+// worth it to implement what they do
+
+// pass otp insert -e -i goo => insert otpauth:// URI
 // Insert into <label>.gpg
 // secret => only ask for secret (don't need full URI)
 //   also requires --issuer or --account
 // if pass_name is not specified, convert issuer:accountname URI label to a path
 // in the form of issuer/accountname
-
-// 1. pass_name becomes optional
-// 2. from_secret becomes a bool (whether or not the user will provide the full uri or just the secret)
-// 3. issuer is a string and required when `from_secret` is true, part of the label
-// 4. account is a string and required when `from_secret` is true if issuer is not specified, part of the label
-
-// if from_secret, issuer
 pub fn insert(
     force: bool,
     echo: bool,
@@ -83,7 +79,7 @@ pub fn insert(
             }
 
             validate::validate(&secret)?;
-            util::encrypt_bytes_into_file(secret.as_bytes(), path, FileMode::Clobber)?;
+            util::encrypt_bytes_into_file(secret.as_bytes(), path, EditMode::Clobber)?;
             util::commit(format!("Add OTP secret for {} to store", secret_name))?;
         }
     } else {
@@ -91,7 +87,7 @@ pub fn insert(
 
         if let Some(secret) = secret {
             validate::validate(&secret)?;
-            util::encrypt_bytes_into_file(secret.as_bytes(), path, FileMode::Clobber)?;
+            util::encrypt_bytes_into_file(secret.as_bytes(), path, EditMode::Clobber)?;
             util::commit(format!("Add OTP secret for {} to store", secret_name))?;
         }
     }

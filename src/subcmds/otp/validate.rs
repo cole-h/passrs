@@ -34,7 +34,7 @@ where
 
     // if secret is not base32, error
     if let Ok(secret) = self::get_base32_secret(&uri) {
-        if let Err(err) = BASE32_NOPAD.decode(&secret.as_bytes()) {
+        if BASE32_NOPAD.decode(&secret.as_bytes()).is_err() {
             return Err(PassrsError::InvalidKeyUri.into());
         }
     }
@@ -100,7 +100,6 @@ where
     Ok(digits)
 }
 
-#[allow(deprecated)]
 pub fn get_algorithm<S>(uri: S) -> Result<HashAlgorithm>
 where
     S: AsRef<str>,

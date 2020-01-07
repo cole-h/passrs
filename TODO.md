@@ -2,7 +2,7 @@
 - clean up code
 - ensure directories exist in functions that try to create encrypted files
     (fairly confident this is done, but should be verified)
-
+- check collects and see if they can't be removed or replaced
 
 # At a later date
 - gopass functions
