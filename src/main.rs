@@ -5,19 +5,7 @@
 //   https://doc.rust-lang.org/stable/reference/comments.html#doc-comments
 //   https://doc.rust-lang.org/rust-by-example/meta/doc.html
 
-mod cli;
-mod clipboard;
-mod consts;
-mod error;
-mod event;
-#[cfg(feature = "otp")]
-mod otp;
-mod subcmds;
-mod tree;
-mod ui;
-mod util;
-
-use error::PassrsError;
+use passrs::cli;
 
 fn main() {
     if let Err(err) = cli::opt() {

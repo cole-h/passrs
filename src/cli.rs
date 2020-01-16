@@ -3,7 +3,8 @@ use structopt::clap;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-use crate::subcmds::*;
+use super::subcmds::{cp, edit, find, generate, git, grep, init, insert, ls, mv, rm, show, unclip};
+use crate::consts::VERSION;
 use crate::util;
 
 #[derive(Debug, StructOpt)]
@@ -12,8 +13,7 @@ use crate::util;
     settings = &[AppSettings::ArgsNegateSubcommands,
                  AppSettings::DeriveDisplayOrder,
                  AppSettings::VersionlessSubcommands],
-    global_setting = AppSettings::ColoredHelp,
-    version = &*crate::consts::VERSION.as_str())]
+    version = &*VERSION.as_str())]
 struct Pass {
     #[structopt(subcommand)]
     subcmd: Option<PassSubcmd>,
@@ -31,6 +31,7 @@ enum PassSubcmd {
         /// The specified gpg-id(s) is assigned to the specified subfolder.
         path: Option<String>,
     },
+    #[structopt(alias = "list")]
     /// List secrets.
     Ls { subfolder: Option<String> },
     /// List secrets that match secret-name.
@@ -45,17 +46,17 @@ enum PassSubcmd {
         #[structopt(long, short = "c")]
         #[allow(clippy::option_option)]
         /// Optionally, put the secret on the clipboard. If a line number is
-        /// specified, that line (1-based for better UX) will be copied.
-        /// Otherwise, the first line of the file will be copied.. If put on the
-        /// clipboard, the secret will be cleared in PASSWORD_STORE_CLIP_TIME in
-        /// seconds, or 45 seconds if unspecified.
+        /// specified, that line (1-based) will be copied. Otherwise, the first
+        /// line of the file will be copied.. If put on the clipboard, the
+        /// secret will be cleared in PASSWORD_STORE_CLIP_TIME in seconds, or 45
+        /// seconds if unspecified.
+        /// NOTE: This flag must be the final argument.
         // Some(Some(usize)) => contents of line at usize.wrapping_sub(1)
         // Some(None) => contents of first line
         // None => don't clip
         clip: Option<Option<usize>>,
     },
-    /// Search for secret files containing search-string when decrypted.
-    /// GREPOPTIONS are explicitly *NOT* supported.
+    /// Search for secret files that contain search-string when decrypted.
     Grep {
         #[structopt(required = true)]
         search_string: String,
@@ -67,12 +68,12 @@ enum PassSubcmd {
         #[structopt(long, short = "e", conflicts_with = "multiline")]
         /// Echo the secret back to the console during entry.
         echo: bool,
-        #[structopt(long, short = "m", conflicts_with = "echo")]
-        /// Enable multiline mode.
-        multiline: bool,
         #[structopt(long, short = "f")]
         /// Overwriting existing secret forcefully.
         force: bool,
+        #[structopt(long, short = "m", conflicts_with = "echo")]
+        /// Enable multiline mode.
+        multiline: bool,
     },
     /// Insert a new secret or edit an existing secret using $EDITOR.
     Edit {
@@ -83,34 +84,36 @@ enum PassSubcmd {
     Generate {
         #[structopt(required = true)]
         secret_name: String,
-        #[structopt(long, short = "n")]
-        /// Disable special symbols.
-        no_symbols: bool,
         #[structopt(long, short = "c")]
         /// Optionally, put the secret on the clipboard. If put on the
         /// clipboard, the secret will be cleared in PASSWORD_STORE_CLIP_TIME in
         /// seconds, or 45 seconds if unspecified.
         clip: bool,
-        #[structopt(long, short = "i", conflicts_with = "force")]
-        /// Remove only the first line of an existing file with a new secret.
-        in_place: bool,
         #[structopt(long, short = "f", conflicts_with = "in-place")]
         /// Overwriting existing secret forcefully.
         force: bool,
+        #[structopt(long, short = "i", conflicts_with = "force")]
+        /// Remove only the first line of an existing file with a new secret.
+        in_place: bool,
+        #[structopt(long, short = "n")]
+        /// Disable special symbols.
+        no_symbols: bool,
         /// The length of the secret.
         length: Option<usize>,
     },
+    #[structopt(alias = "remove")]
     /// Remove existing secret or directory.
     Rm {
         #[structopt(required = true)]
         secret_name: String,
-        #[structopt(long, short = "r")]
-        /// Delete recursively.
-        recursive: bool,
         #[structopt(long, short = "f")]
         /// Delete forcefully.
         force: bool,
+        #[structopt(long, short = "r")]
+        /// Delete recursively.
+        recursive: bool,
     },
+    #[structopt(alias = "move")]
     /// Rename/move old-path to new-path.
     Mv {
         #[structopt(required = true)]
@@ -121,6 +124,7 @@ enum PassSubcmd {
         /// Move forcefully.
         force: bool,
     },
+    #[structopt(alias = "copy")]
     /// Copy old-path to new-path.
     Cp {
         #[structopt(required = true)]
@@ -131,6 +135,7 @@ enum PassSubcmd {
         /// Copy forcefully.
         force: bool,
     },
+    // FIXME: waiting on https://github.com/TeXitoi/structopt/pull/314
     #[structopt(settings = &[AppSettings::TrailingVarArg, AppSettings::AllowLeadingHyphen])]
     /// Execute a git command specified by git-command-args inside the password
     /// store.
@@ -176,19 +181,22 @@ enum Otp {
     Insert {
         #[structopt(required = true)]
         secret_name: String,
-        #[structopt(long, short = "f")]
-        /// Overwriting existing secret forcefully.
-        force: bool,
         #[structopt(long, short = "e")]
         /// Echo the secret back to the console during entry.
         echo: bool,
+        #[structopt(long, short = "f")]
+        /// Overwriting existing secret forcefully.
+        force: bool,
+        #[structopt(long, short = "g")]
+        /// Generate an OTP code from the newly-inserted secret.
+        generate: bool,
         #[structopt(long, short = "s")]
         /// Create an OTP URI from the provided secret. Assumes SHA1 algorithm,
         /// 30-second period, and 6 digits.
         from_secret: bool,
         #[structopt(long, requires = "from-secret")]
         /// One of SHA1, SHA256, or SHA512.
-        algo: Option<String>,
+        algorithm: Option<String>,
         #[structopt(long, requires = "from-secret")]
         /// How often the OTP refreshes.
         period: Option<u32>,
@@ -207,9 +215,12 @@ enum Otp {
         /// Create an OTP URI from the provided secret. Assumes SHA1 algorithm,
         /// 30-second period, and 6 digits.
         from_secret: bool,
+        #[structopt(long, short = "g")]
+        /// Generate an OTP code from the newly-appended secret.
+        generate: bool,
         #[structopt(long, requires = "from-secret")]
         /// One of SHA1, SHA256, or SHA512.
-        algo: Option<String>,
+        algorithm: Option<String>,
         #[structopt(long, requires = "from-secret")]
         /// How often the OTP refreshes.
         period: Option<u32>,
@@ -225,8 +236,8 @@ enum Otp {
         /// Copy the URI to the clipboard.
         clip: bool,
         #[structopt(long, short = "q", conflicts_with = "clip")]
-        /// Generate a QR code to the specified path.
-        qrcode: Option<String>,
+        /// Generate a QR code to stdout.
+        qrcode: bool,
     },
     /// Test a URI string for validity according to the Key Uri Format.
     Validate {
@@ -235,16 +246,29 @@ enum Otp {
     },
 }
 
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Flags {
+    pub clip: bool,
+    pub echo: bool,
+    pub force: bool,
+    pub from_secret: bool,
+    pub generate: bool,
+    pub in_place: bool,
+    pub multiline: bool,
+    pub no_symbols: bool,
+    pub qrcode: bool,
+    pub recursive: bool,
+}
+
 pub fn opt() -> Result<()> {
     let matches = Pass::from_args();
-    dbg!(&matches);
 
     // NOTE: committing is handled inside any subcommand that may modify the
     // store
     match matches.subcmd {
         Some(sub) => match sub {
-            PassSubcmd::Init { path, gpg_ids } => {
-                init::init(path, gpg_ids)?;
+            PassSubcmd::Init { gpg_ids, path } => {
+                init::init(gpg_ids, path)?;
             }
             PassSubcmd::Ls { subfolder } => {
                 util::verify_store_exists()?;
@@ -254,61 +278,82 @@ pub fn opt() -> Result<()> {
                 util::verify_store_exists()?;
                 find::find(secret_name)?;
             }
-            PassSubcmd::Show { clip, secret_name } => {
+            PassSubcmd::Show { secret_name, clip } => {
                 util::verify_store_exists()?;
-                show::show(clip, secret_name)?;
+                show::show(secret_name, clip)?;
             }
             PassSubcmd::Grep { search_string } => {
                 util::verify_store_exists()?;
                 grep::grep(search_string)?;
             }
             PassSubcmd::Insert {
-                echo,
-                multiline,
-                force,
                 secret_name,
+                echo,
+                force,
+                multiline,
             } => {
+                let flags = Flags {
+                    echo,
+                    force,
+                    multiline,
+                    ..Default::default()
+                };
+
                 util::verify_store_exists()?;
-                insert::insert(echo, multiline, force, secret_name)?;
+                insert::insert(secret_name, flags)?;
             }
             PassSubcmd::Edit { secret_name } => {
                 util::verify_store_exists()?;
                 edit::edit(secret_name)?;
             }
             PassSubcmd::Generate {
-                no_symbols,
-                clip,
-                in_place,
-                force,
                 secret_name,
+                clip,
+                force,
+                in_place,
+                no_symbols,
                 length,
             } => {
+                let flags = Flags {
+                    clip,
+                    force,
+                    in_place,
+                    no_symbols,
+                    ..Default::default()
+                };
+
                 util::verify_store_exists()?;
-                generate::generate(no_symbols, clip, in_place, force, secret_name, length)?;
+                generate::generate(secret_name, length, flags)?;
             }
             PassSubcmd::Rm {
-                recursive,
-                force,
                 secret_name,
+                force,
+                recursive,
             } => {
+                let flags = Flags {
+                    recursive,
+                    force,
+                    ..Default::default()
+                };
+
                 util::verify_store_exists()?;
-                rm::rm(recursive, force, secret_name)?;
+                rm::rm(secret_name, flags)?;
             }
             PassSubcmd::Mv {
-                force,
                 old_path,
                 new_path,
+                force,
             } => {
                 util::verify_store_exists()?;
-                mv::mv(force, old_path, new_path)?;
+                mv::mv(old_path, new_path, force)?;
             }
             PassSubcmd::Cp {
-                force,
                 old_path,
                 new_path,
+                force,
             } => {
                 util::verify_store_exists()?;
-                cp::cp(force, old_path, new_path)?;
+                cp::cp(old_path, new_path, force)?;
             }
             PassSubcmd::Git { git_command_args } => {
                 util::verify_store_exists()?;
@@ -323,65 +368,81 @@ pub fn opt() -> Result<()> {
             }
             #[cfg(feature = "otp")]
             PassSubcmd::Otp(otp) => {
-                use crate::subcmds::otp::*;
+                use super::subcmds::otp::{append, code, insert, uri, validate};
 
                 match otp {
-                    Otp::Code { clip, secret_name } => {
+                    Otp::Code { secret_name, clip } => {
                         util::verify_store_exists()?;
                         code::code(clip, secret_name)?;
                     }
                     Otp::Insert {
-                        force,
-                        echo,
                         secret_name,
+                        echo,
+                        force,
                         from_secret,
-                        algo,
-                        period,
+                        generate,
+                        algorithm,
                         digits,
+                        period,
                     } => {
-                        util::verify_store_exists()?;
-                        insert::insert(
-                            force,
+                        let flags = Flags {
                             echo,
-                            secret_name,
+                            force,
                             from_secret,
-                            algo,
-                            period,
-                            digits,
-                        )?;
+                            generate,
+                            ..Default::default()
+                        };
+
+                        util::verify_store_exists()?;
+                        insert::insert(secret_name, algorithm, digits, period, flags)?;
                     }
                     Otp::Append {
-                        echo,
                         secret_name,
+                        echo,
                         from_secret,
-                        algo,
-                        period,
+                        generate,
+                        algorithm,
                         digits,
+                        period,
                     } => {
+                        let flags = Flags {
+                            echo,
+                            from_secret,
+                            generate,
+                            ..Default::default()
+                        };
+
                         util::verify_store_exists()?;
-                        append::append(echo, secret_name, from_secret, algo, period, digits)?;
+                        append::append(secret_name, algorithm, digits, period, flags)?;
                     }
                     Otp::Uri {
+                        secret_name,
                         clip,
                         qrcode,
-                        secret_name,
                     } => {
                         util::verify_store_exists()?;
-                        uri::uri(clip, qrcode, secret_name)?;
+                        uri::uri(secret_name, clip, qrcode)?;
                     }
                     Otp::Validate { uri } => {
                         util::verify_store_exists()?;
-                        validate::validate(uri)?;
+
+                        match validate::validate(uri) {
+                            Ok(_) => println!("URI is valid."),
+                            Err(e) => return Err(e),
+                        }
                     }
                 }
             }
         },
-        // If no command is specified, `ls` the entire password store, like
-        // `pass` does
-        None => {
-            util::verify_store_exists()?;
-            ls::ls(None)?;
-        }
+        // If no command is specified, ls the entire password store, like pass
+        // does
+        None => match util::verify_store_exists() {
+            Ok(_) => ls::ls(None)?,
+            Err(_) => {
+                Pass::clap().print_help()?;
+                std::process::exit(1);
+            }
+        },
     }
 
     Ok(())

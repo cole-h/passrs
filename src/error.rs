@@ -2,95 +2,55 @@ use termion::color;
 use termion::style;
 use thiserror::Error;
 
-// TODO: make ContextExt and make with_context show line numbers
-//   https://github.com/dtolnay/anyhow/issues/22
+const RED: color::Fg<color::Red> = color::Fg(color::Red);
+const RESET: style::Reset = style::Reset;
+
 #[derive(Debug, Error)]
 pub(crate) enum PassrsError {
-    #[error("{}Error: No private key found{}", color::Fg(color::Red), style::Reset)]
+    #[error("{RED}Error: No private key found{RESET}")]
     NoPrivateKeyFound,
-    #[error(
-        "{}Error: No matches found for search '{0}'{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
+    #[error("{RED}Error: No matches found for '{0}'{RESET}")]
     NoMatchesFound(String),
-    #[error(
-        "{}Error: The entered secrets do not match.{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
+    #[error("{RED}Error: The entered secrets do not match.{RESET}")]
     SecretsDontMatch,
-    #[error("{}Error: Hashes don't match{}", color::Fg(color::Red), style::Reset)]
+    #[error("{RED}Error: Hashes don't match{RESET}")]
     HashMismatch,
-    #[error("{}Error: User aborted{}", color::Fg(color::Red), style::Reset)]
+    #[error("{RED}Error: User aborted{RESET}")]
     UserAbort,
     #[cfg(feature = "otp")]
-    #[error("Error: URI was not in valid Key Uri Format.\n\
+    #[error("{RED}Error: URI was not in valid Key Uri Format.{RESET}\n\
              See https://github.com/google/google-authenticator/wiki/Key-Uri-Format for more information.")]
     InvalidKeyUri,
     #[cfg(feature = "otp")]
-    #[error(
-        "{}Error: Invalid hash function: '{0}'{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
+    #[error("{RED}Error: Invalid hash function: '{0}'{RESET}")]
     InvalidHashAlgorithm(String),
-    #[error("{}Error: No signing key found{}", color::Fg(color::Red), style::Reset)]
+    #[cfg(feature = "otp")]
+    #[error("{RED}Error: No URIs found in entry '{0}'{RESET}")]
+    NoUriFound(String),
+    #[error("{RED}Error: No signing key found{RESET}")]
     NoSigningKeyFound,
-    #[error(
-        "{}Error: Path '{0}' does not exist{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
+    #[error("{RED}Error: Path '{0}' does not exist{RESET}")]
     PathDoesntExist(String),
-    #[error("{}Error: Sneaky path '{0}'{}", color::Fg(color::Red), style::Reset)]
+    #[error("{RED}Error: Sneaky path '{0}'{RESET}")]
     SneakyPath(String),
-    #[error("{}Error: Store does not exist{}", color::Fg(color::Red), style::Reset)]
+    #[error(
+        "{RED}Error: Store does not exist{RESET}\n\
+             You must run `pass init gpg-id` before you can \
+             use the password store"
+    )]
     StoreDoesntExist,
-    #[error(
-        "{}Error: '{0}' is not in the password store{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
+    #[error("{RED}Error: '{0}' is not in the password store{RESET}")]
     NotInStore(String),
-    #[error(
-        "{}Error: Source is destination{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
+    #[error("{RED}Error: Source is destination{RESET}")]
     SourceIsDestination,
-    #[error("{}Error: '{0}' is a directory{}", color::Fg(color::Red), style::Reset)]
+    #[error("{RED}Error: '{0}' is a directory{RESET}")]
     PathIsDir(String),
-    #[error("Contents unchanged")]
+    #[error("Contents unchanged")] // don't color this one because it's just information
     ContentsUnchanged,
-    #[error(
-        "{}Error: Failed to get contents of clipboard{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
+    #[error("{RED}Error: Failed to get contents of clipboard{RESET}")]
     PasteFailed,
-    #[error(
-        "{}Error: No `.gpg-id` was found in '{0}'{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
+    #[error("{RED}Error: No `.gpg-id` was found in '{0}'{RESET}")]
     NoGpgIdFile(String),
-    #[error(
-        "{}Error: Signature for '{0}' does not exist{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
-    MissingSignature(String),
-    #[error(
-        "{}Error: Signature for '{0}' does not match{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
-    BadSignature(String),
-    #[error(
-        "{}Error: Failed to set contents of clipboard{}",
-        color::Fg(color::Red),
-        style::Reset
-    )]
+    #[error("{RED}Error: Failed to set contents of clipboard{RESET}")]
     ClipFailed,
 }

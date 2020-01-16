@@ -29,11 +29,11 @@ pub fn validate<S>(uri: S) -> Result<()>
 where
     S: AsRef<str>,
 {
-    let re = &URI_REGEX;
     let uri = uri.as_ref();
+    let re = &URI_REGEX;
 
-    // if secret is not base32, error
     if let Ok(secret) = self::get_base32_secret(&uri) {
+        let secret = secret.to_ascii_uppercase();
         if BASE32_NOPAD.decode(&secret.as_bytes()).is_err() {
             return Err(PassrsError::InvalidKeyUri.into());
         }
@@ -49,12 +49,12 @@ pub fn get_base32_secret<S>(uri: S) -> Result<String>
 where
     S: AsRef<str>,
 {
-    let re = &URI_REGEX;
     let uri = uri.as_ref();
-
+    let re = &URI_REGEX;
     let captures = re
         .captures(&uri)
         .with_context(|| "Failed to get regex captures")?;
+
     let secret = captures
         .name("secret")
         .with_context(|| "Failed to get secret from regex")?
@@ -68,12 +68,12 @@ pub fn get_period<S>(uri: S) -> Result<u64>
 where
     S: AsRef<str>,
 {
-    let re = &URI_REGEX;
     let uri = uri.as_ref();
-
+    let re = &URI_REGEX;
     let captures = re
         .captures(&uri)
         .with_context(|| "Failed to get regex captures")?;
+
     let period = match captures.name("period") {
         Some(num) => num.as_str().parse::<u64>()?,
         None => 30,
@@ -86,12 +86,12 @@ pub fn get_digits<S>(uri: S) -> Result<usize>
 where
     S: AsRef<str>,
 {
-    let re = &URI_REGEX;
     let uri = uri.as_ref();
-
+    let re = &URI_REGEX;
     let captures = re
         .captures(&uri)
         .with_context(|| "Failed to get regex captures")?;
+
     let digits = match captures.name("digits") {
         Some(num) => num.as_str().parse::<usize>()?,
         None => 6,
@@ -104,12 +104,12 @@ pub fn get_algorithm<S>(uri: S) -> Result<HashAlgorithm>
 where
     S: AsRef<str>,
 {
-    let re = &URI_REGEX;
     let uri = uri.as_ref();
-
+    let re = &URI_REGEX;
     let captures = re
         .captures(&uri)
         .with_context(|| "Failed to get regex captures")?;
+
     let algo = match captures.name("algorithm") {
         Some(algo) => match algo.as_str().to_lowercase().as_ref() {
             "sha1" => HashAlgorithm::Sha1,

@@ -1,45 +1,31 @@
 use std::fs;
-use std::io;
-use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 
 use anyhow::Result;
-use termion::input::TermRead;
 
 use crate::consts::PASSWORD_STORE_UMASK;
 use crate::util;
+use crate::Flags;
 use crate::PassrsError;
 
-// TODO: `pass rm` also removes the pathspec from the repo
-//   I think this is unncessary since we add everything to the index in
-//   util::commit anyways
-pub fn rm(recursive: bool, force: bool, pass_name: String) -> Result<()> {
-    let path = util::canonicalize_path(&pass_name)?;
-
-    let stdin = io::stdin();
-    let mut stdin = stdin.lock();
-    let stdout = io::stdout();
-    let mut stdout = stdout.lock();
+pub fn rm(secret_name: String, flags: Flags) -> Result<()> {
+    let recursive = flags.recursive;
+    let force = flags.force;
+    let path = util::canonicalize_path(&secret_name)?;
 
     if !force && util::path_exists(&path)? {
-        write!(
-            stdout,
-            "Are you sure you would like to delete {}? [y/N] ",
-            pass_name
-        )?;
-        io::stdout().flush()?;
+        let prompt = format!("Are you sure you would like to delete {}?", secret_name);
 
-        match stdin.read_line()? {
-            Some(reply) if reply.starts_with('y') || reply.starts_with('Y') => {
-                if path.is_file() {
-                    fs::OpenOptions::new()
-                        .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
-                        .write(true)
-                        .truncate(true)
-                        .open(&path)?;
-                }
+        if util::prompt_yesno(prompt)? {
+            if path.is_file() {
+                fs::OpenOptions::new()
+                    .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
+                    .write(true)
+                    .truncate(true)
+                    .open(&path)?;
             }
-            _ => return Err(PassrsError::UserAbort.into()),
+        } else {
+            return Err(PassrsError::UserAbort.into());
         }
     }
 
@@ -48,13 +34,13 @@ pub fn rm(recursive: bool, force: bool, pass_name: String) -> Result<()> {
             if meta.is_dir() {
                 if recursive {
                     fs::remove_dir_all(&path)?;
-                    util::commit(format!("Remove folder {} from store", pass_name))?;
+                    util::commit(format!("Remove folder {} from store", secret_name))?;
                 } else {
                     return Err(PassrsError::PathIsDir(path.display().to_string()).into());
                 }
             } else {
                 fs::remove_file(path)?;
-                util::commit(format!("Remove entry {} from store", pass_name))?;
+                util::commit(format!("Remove entry {} from store", secret_name))?;
             }
         }
         Err(_) => {

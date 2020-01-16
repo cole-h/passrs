@@ -1,8 +1,9 @@
 - document everything (see main.rs for links)
 - clean up code
-- ensure directories exist in functions that try to create encrypted files
-    (fairly confident this is done, but should be verified)
 - check collects and see if they can't be removed or replaced
+- completion should be able to complete entries (see `pass.fish-completion`)
+    https://raw.githubusercontent.com/zx2c4/password-store/master/src/completion/pass.fish-completion
+- setup tests (ref: https://git.zx2c4.com/password-store/tree/tests)
 
 # At a later date
 - gopass functions
@@ -10,4 +11,3 @@
     - search for duplicate passwords? -- calculate hash of contents, store in
         HashMap<filename, hash>, if entry already exists, report filename
   - binary (binary -> base64, then enc)
-  - completions

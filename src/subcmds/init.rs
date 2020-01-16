@@ -1,23 +1,22 @@
 use std::borrow::Borrow;
 use std::fs;
-use std::fs::OpenOptions;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str;
 
 use anyhow::{Context as _, Result};
 use git2::Repository;
-use gpgme::{Context, Data, Protocol, SignMode};
+use gpgme::{Context, Protocol};
 
 use crate::consts::{
-    PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_LEN, PASSWORD_STORE_SIGNING_KEY,
-    PASSWORD_STORE_STRING, PASSWORD_STORE_UMASK,
+    PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_SIGNING_KEY, PASSWORD_STORE_UMASK,
+    STORE_LEN, STORE_STRING,
 };
 use crate::util;
 use crate::PassrsError;
 
-pub fn init(path: Option<String>, keys: Vec<String>) -> Result<()> {
+pub fn init(keys: Vec<String>, path: Option<String>) -> Result<()> {
     let keys = if keys.is_empty() {
         &*PASSWORD_STORE_KEY
     } else {
@@ -25,220 +24,117 @@ pub fn init(path: Option<String>, keys: Vec<String>) -> Result<()> {
     };
     let store = &*PASSWORD_STORE_DIR;
 
-    // If store doesn't exist, create it
     if !util::path_exists(&store)? {
         if let Some(path) = path {
-            println!(
+            eprintln!(
                 "Ignoring path {}; creating store at {}",
-                path, *PASSWORD_STORE_STRING
+                path, *STORE_STRING
             );
         }
-
-        self::create_store(store, &keys)?;
-    } else {
-        // No signing key given
-        // TODO: No ID means deinitialize
-        //   1. Remove .gpg-id, `git rm -qr .gpg-id`
-        //   2. commit "Deinitialize {gpg_id}"
-        if keys.is_empty() || keys.get(0).map(|k| k.is_empty()).unwrap_or(false) {
-            return Err(PassrsError::NoPrivateKeyFound.into());
+        if keys.is_empty() {
+            return Err(PassrsError::StoreDoesntExist.into());
         }
-        // Store does exist
-        if let Some(path) = path {
-            // User specified a subpath, so create a substore at that path
-            let substore_path = util::exact_path(&path)?;
 
-            if !util::path_exists(&substore_path)? {
-                // Substore doesn't exist yet, so we can create it
-                self::create_substore(&store, &substore_path, &keys)?;
+        self::create_store(&store, &keys)?;
 
-                let list = &keys.join(", ");
-                let keys = if keys.len() > 1 { &list } else { &keys[0] };
-                println!("Password store initialized for {} ({})", &keys, &path);
-            } else {
-                // Substore exists at `substore_path` and keys aren't the same
-                // so we can recrypt this subdir
+        let list = &keys.join(", ");
+        let keys = if keys.len() > 1 { &list } else { &keys[0] };
+        println!("Password store initialized for {}", keys);
+    } else if keys.is_empty() {
+        // Although pass allows the deinitialization of a store, we don't
+        //   https://git.zx2c4.com/password-store/commit/src/password-store.sh?id=0f0483f789e4819b029cf2f9d8168a6172da4d92
+        return Err(PassrsError::NoPrivateKeyFound.into());
+    } else if let Some(path) = path {
+        let substore_path = util::exact_path(&path)?;
 
-                // `recrypt_store` handles the case where a subdir has a .gpg-id
-                // (which causes it to break out of the loop, thus ignoring any
-                // dir with a .gpg-id except for the root, PASSWORD_STORE_DIR)
-                self::recrypt_store(&substore_path, &keys)?;
+        if !util::path_exists(&substore_path)? {
+            self::create_substore(&store, &substore_path, &keys)?;
 
-                let list = &keys.join(", ");
-                let new_keys = if keys.len() > 1 { &list } else { &keys[0] };
-                // need to commit everything -- just use util::commit
-                util::commit(format!(
-                    "Re-encrypt {} using new GPG ID {}",
-                    &substore_path.display().to_string()[*PASSWORD_STORE_LEN..],
-                    &new_keys,
-                ))
-                .with_context(|| "Failed to commit re-encrypting substore")?;
-                self::update_key(&substore_path, &keys)?;
-            }
+            let list = &keys.join(", ");
+            let keys = if keys.len() > 1 { &list } else { &keys[0] };
+            println!("Password store initialized for {} ({})", &keys, &path);
         } else {
-            // `recrypt_store` handles the case where a subdir has a .gpg-id
-            // (which causes it to break out of the loop, thus ignoring any
-            // dir with a .gpg-id except for the root, PASSWORD_STORE_DIR)
-            self::recrypt_store(&store, &keys)?;
+            util::recrypt_dir(&substore_path, Some(keys))?;
 
             let list = &keys.join(", ");
             let new_keys = if keys.len() > 1 { &list } else { &keys[0] };
+
+            self::update_key(&substore_path, &keys)?;
             util::commit(format!(
-                "Re-encrypt password store using new GPG ID {}",
-                &new_keys
+                "Re-encrypt {} using new GPG ID {}",
+                &substore_path.display().to_string()[*STORE_LEN..],
+                &new_keys,
             ))
-            .with_context(|| "Failed to commit re-encrypted store")?;
-            self::update_key(&store, &keys)?;
+            .with_context(|| "Failed to commit re-encrypting substore")?;
         }
+    } else {
+        util::recrypt_dir(&store, Some(keys))?;
+
+        let list = &keys.join(", ");
+        let new_keys = if keys.len() > 1 { &list } else { &keys[0] };
+
+        self::update_key(&store, &keys)?;
+        util::commit(format!(
+            "Re-encrypt password store using new GPG ID {}",
+            &new_keys
+        ))
+        .with_context(|| "Failed to commit re-encrypted store")?;
     }
 
     Ok(())
 }
 
-fn recrypt_store<P, V>(dir: P, keys: V) -> Result<()>
+fn update_key<K, P>(path: P, keys: K) -> Result<()>
 where
     P: AsRef<Path>,
-    V: AsRef<[String]>,
+    K: AsRef<[String]>,
 {
-    let keys = keys.as_ref();
-    let dir = dir.as_ref();
-    if keys.is_empty() || keys.get(0).map(|k| k.is_empty()).unwrap_or(false) {
-        return Err(PassrsError::NoPrivateKeyFound.into());
-    }
-
-    // Get directory's contents
-    for entry in fs::read_dir(&dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        let file_name = path.file_name();
-        let show = entry
-            .file_name()
-            .to_str()
-            .map(|e| !e.starts_with(".git"))
-            .unwrap_or(false);
-        if show {
-            if let Some(name) = file_name {
-                dbg!(&path);
-                if name == ".gpg-id" {
-                    if *path == *PASSWORD_STORE_DIR.join(".gpg-id") {
-                        continue;
-                    }
-                    break;
-                }
-            }
-            if path.is_file() {
-                if let Some(ext) = path.extension() {
-                    if ext == "gpg" {
-                        self::recrypt_file(path, keys)?;
-                    }
-                }
-            } else if path.is_dir() {
-                // Keep descending the file tree
-                self::recrypt_store(path, keys)?;
-            }
-        }
-    }
-
-    Ok(())
-}
-
-fn recrypt_file<S, V>(path: S, keys: V) -> Result<()>
-where
-    S: AsRef<Path>,
-    V: AsRef<[String]>,
-{
-    let keys = keys.as_ref();
     let path = path.as_ref();
-    if keys.is_empty() || keys.get(0).map(|k| k.is_empty()).unwrap_or(false) {
+    let keys = keys.as_ref();
+
+    if keys.is_empty() {
         return Err(PassrsError::NoPrivateKeyFound.into());
     }
 
-    let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
-    let keys = keys
-        .iter()
-        .map(|k| ctx.get_secret_key(k))
-        .filter_map(|k| k.ok())
-        .collect::<Vec<_>>();
-    let mut encrypted_contents = Data::load(path.display().to_string())?;
-    let mut decrypted_contents = Vec::new();
-
-    ctx.decrypt(&mut encrypted_contents, &mut decrypted_contents)?;
-
-    let mut file = OpenOptions::new()
+    let gpg_ids = verify_keys(keys)?;
+    let gpg_id_file = format!("{}/.gpg-id", path.display());
+    let gpg_id_sigfile = format!("{}.sig", gpg_id_file);
+    let mut file = fs::OpenOptions::new()
         .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
+        .truncate(true)
         .write(true)
-        .open(&path)?;
+        .create(true)
+        .open(&gpg_id_file)?;
 
-    let mut encrypted_contents = Vec::new();
-    ctx.encrypt(&keys, &decrypted_contents, &mut encrypted_contents)?;
-    file.write_all(&encrypted_contents)?;
+    file.write_all(gpg_ids.join("\n").as_bytes())?;
 
-    // re-sign files as well
-    let signing_keys = &PASSWORD_STORE_SIGNING_KEY
-        .iter()
-        .map(|k| ctx.get_key(k))
-        .filter_map(|k| k.ok())
-        .collect::<Vec<_>>();
-
-    for key in signing_keys {
-        ctx.add_signer(&key)
-            .with_context(|| format!("Failed to add key {:?} as signer", key.id()))?;
-    }
-
-    if !signing_keys.is_empty() {
-        let signature = format!("{}.sig", path.display());
+    if PASSWORD_STORE_SIGNING_KEY.is_empty() {
+        if PathBuf::from(&gpg_id_sigfile).exists() {
+            fs::remove_file(&gpg_id_sigfile)?;
+        }
+    } else {
+        let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
         let mut outbuf: Vec<u8> = Vec::new();
         let mut file = fs::OpenOptions::new()
             .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
             .truncate(true)
             .write(true)
             .create(true)
-            .open(&signature)?;
+            .open(&gpg_id_sigfile)?;
+        let signing_keys = &PASSWORD_STORE_SIGNING_KEY
+            .iter()
+            .map(|k| ctx.get_key(k))
+            .filter_map(|k| k.ok())
+            .collect::<Vec<_>>();
 
-        ctx.sign_detached(&encrypted_contents, &mut outbuf)?;
+        for key in signing_keys {
+            ctx.add_signer(&key)
+                .with_context(|| format!("Failed to add key {:?} as signer", key.id()))?;
+        }
+
+        ctx.sign_detached(gpg_ids.join("\n").as_bytes(), &mut outbuf)?;
         file.write_all(&outbuf)?;
     }
-
-    Ok(())
-}
-
-fn update_key<V, P>(path: P, keys: V) -> Result<()>
-where
-    P: AsRef<Path>,
-    V: AsRef<[String]>,
-{
-    let path = path.as_ref();
-    let keys = keys.as_ref();
-    if keys.is_empty() || keys.get(0).map(|k| k.is_empty()).unwrap_or(false) {
-        return Err(PassrsError::NoPrivateKeyFound.into());
-    }
-
-    let gpg_ids = verify_keys(keys)?;
-    let gpg_id_path = format!("{}/.gpg-id", path.display());
-    let mut file = fs::OpenOptions::new()
-        .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
-        .truncate(true)
-        .write(true)
-        .create(true)
-        .open(&gpg_id_path)?;
-    file.write_all(gpg_ids.join("\n").as_bytes())?;
-
-    let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
-    let gpg_id_signature = format!("{}.sig", gpg_id_path);
-    let mut outbuf: Vec<u8> = Vec::new();
-    let mut file = fs::OpenOptions::new()
-        .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
-        .truncate(true)
-        .write(true)
-        .create(true)
-        .open(&gpg_id_signature)?;
-
-    ctx.sign(
-        SignMode::Detached,
-        gpg_ids.join("\n").as_bytes(),
-        &mut outbuf,
-    )?;
-    file.write_all(&outbuf)?;
 
     Ok(())
 }
@@ -253,12 +149,12 @@ where
 
     for key in gpg_keys {
         if let Ok(secret_key) = ctx.get_secret_key(key) {
-            let user_id = match secret_key
+            let email = secret_key
                 .user_ids()
                 .next()
                 .with_context(|| "Option did not contain a value.")?
-                .email()
-            {
+                .email();
+            let user_id = match email {
                 Ok(email) => email.to_owned(),
                 _ => key.to_owned(),
             };
@@ -269,7 +165,7 @@ where
         }
     }
 
-    if keys.is_empty() || keys.get(0).map(|k| k.is_empty()).unwrap_or(false) {
+    if keys.is_empty() {
         Err(PassrsError::NoPrivateKeyFound.into())
     } else {
         Ok(keys)
@@ -285,10 +181,8 @@ fn git_prep(repo: &Repository) -> Result<(git2::Oid, git2::Signature, Vec<git2::
     let tree_id = repo.index()?.write_tree()?;
     let sig = repo.signature()?;
     let mut parents = Vec::new();
-    if let Some(parent) = repo.head().ok().map(|h| {
-        h.target()
-            .expect("git2 reference didn't have a valid target")
-    }) {
+
+    if let Some(parent) = repo.head().ok().map(|h| h.target().unwrap()) {
         parents.push(repo.find_commit(parent)?);
     }
 
@@ -304,82 +198,87 @@ where
 {
     let path = path.as_ref();
     let gpg_keys = gpg_keys.as_ref();
-    let gpg_ids = verify_keys(gpg_keys)?;
+    let gpg_ids = self::verify_keys(gpg_keys)?;
 
-    match fs::metadata(&path) {
-        Ok(_) => {}
-        Err(_) => {
-            fs::create_dir_all(&path)?;
-            util::set_umask_recursive(&path)?;
-        }
+    if fs::metadata(&path).is_err() {
+        fs::create_dir_all(&path)?;
+        util::set_permissions_recursive(&path)?;
     }
 
-    // NOTE: `pass` doesn't actually commit until the user runs `pass git
-    // init`, which is intercepted... I don't think I want to follow their
-    // footsteps
+    // NOTE: pass doesn't actually commit until the user runs `pass git init`,
+    // which is intercepted... I don't like this and thus force the creation of
+    // a git repository
     if let Ok(repo) = Repository::init(&path) {
-        let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
-
-        // create .gpg-id
         let gpg_id_path = format!("{}/.gpg-id", path.display());
         let mut file = fs::OpenOptions::new()
             .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
             .write(true)
             .create(true)
             .open(&gpg_id_path)?;
+
         file.write_all(gpg_ids.join("\n").as_bytes())?;
 
-        // create pass .gitattributes
         let gitattributes_path = format!("{}/.gitattributes", path.display());
         let mut file = fs::OpenOptions::new()
             .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
             .write(true)
             .create(true)
             .open(&gitattributes_path)?;
+
         file.write_all(b"*.gpg diff=gpg")?;
 
         let mut config = repo.config()?;
-        config.set_bool("diff.gpg.binary", true)?;
-        // NOTE: These are the default GPG_OPTS. Since we don't call out to gpg,
-        // it's difficult if not impossible to always pass the contents of
-        // PASSWORD_STORE_GPG_OPTS
+
+        // NOTE: These are the default GPG_OPTS as defined in `pass`. Since we
+        // don't call out to gpg, we can't easily support PASSWORD_STORE_GPG_OPTS.
         config.set_str(
             "diff.gpg.textconv",
-            "gpg2 -d --quiet --yes --compress-algo=none --no-encrypt-to --batch --use-agent",
+            "gpg2 --decrypt --quiet --yes --compress-algo=none --no-encrypt-to --batch --use-agent",
         )?;
+        config.set_bool("diff.gpg.binary", true)?;
 
         let (tree_id, sig, parents) = git_prep(&repo)?;
         let parents = parents.iter().map(Borrow::borrow).collect::<Vec<_>>();
+        let list = &gpg_keys.join(", ");
+        let keys = if gpg_keys.len() > 1 {
+            &list
+        } else {
+            &gpg_keys[0]
+        };
+        let commit_message = format!("Password store initialized for {}", keys);
+        let ref_message = format!("commit (initial): {}", &commit_message);
 
-        // get ready to commit
-        let buf = repo.commit_create_buffer(
-            &sig,
-            &sig,
-            &format!("Password store initialized for {}", gpg_keys.join(", ")),
-            &repo.find_tree(tree_id)?,
-            &parents,
-        )?;
-        let contents = str::from_utf8(&buf)?.to_string();
-        let mut outbuf = Vec::new();
+        let commit = if config.get_bool("commit.gpgsign")? {
+            let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
+            let buf = repo.commit_create_buffer(
+                &sig,
+                &sig,
+                &commit_message,
+                &repo.find_tree(tree_id)?,
+                &parents,
+            )?;
+            let contents = str::from_utf8(&buf)?.to_string();
+            let mut outbuf = Vec::new();
 
-        ctx.set_armor(true);
-        ctx.sign_detached(&*buf, &mut outbuf)?;
+            ctx.set_armor(true);
+            ctx.sign_detached(&*buf, &mut outbuf)?;
 
-        let out = str::from_utf8(&outbuf)?;
-        let commit = repo.commit_signed(&contents, &out, Some("gpgsig"))?;
+            let out = str::from_utf8(&outbuf)?;
 
-        // If you use "HEAD" as the ref to change, master isn't updated. Short
-        // refs don't work.
-        repo.reference(
-            "refs/heads/master",
-            commit,
-            true,
-            "commit (initial): Add current contents of password store",
-        )?;
+            repo.commit_signed(&contents, &out, Some("gpgsig"))?
+        } else {
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                &commit_message,
+                &repo.find_tree(tree_id)?,
+                &parents,
+            )?
+        };
 
-        // TODO: remove
-        dbg!(commit);
-    }
+        repo.reference("refs/heads/master", commit, true, &ref_message)?;
+    };
 
     Ok(())
 }
@@ -393,67 +292,63 @@ where
     let path = path.as_ref();
     let store = store.as_ref();
     let gpg_keys = gpg_keys.as_ref();
-    self::verify_keys(gpg_keys)?;
 
-    match fs::metadata(&path) {
-        Ok(_) => {}
-        Err(_) => {
-            fs::create_dir_all(&path)?;
-            util::set_umask_recursive(&path)?;
-        }
+    self::verify_keys(&gpg_keys)?;
+
+    if fs::metadata(&path).is_err() {
+        fs::create_dir_all(&path)?;
+        util::set_permissions_recursive(&path)?;
     }
 
     if let Ok(repo) = Repository::open(&store) {
         let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
 
-        // create .gpg-id
         let gpg_id_path = format!("{}/.gpg-id", path.display());
         let mut file = fs::OpenOptions::new()
             .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
             .write(true)
             .create(true)
             .open(&gpg_id_path)?;
+
         file.write_all(gpg_keys.join("\n").as_bytes())?;
 
         let (tree_id, sig, parents) = git_prep(&repo)?;
         let parents = parents.iter().map(Borrow::borrow).collect::<Vec<_>>();
+        let config = repo.config()?;
+        let commit_message = format!(
+            "Set GPG ID to {} ({})",
+            gpg_keys.join(", "),
+            &path.display().to_string()[*STORE_LEN..]
+        );
+        let ref_message = format!("commit: {}", &commit_message);
+        let commit = if config.get_bool("commit.gpgsign")? {
+            let buf = repo.commit_create_buffer(
+                &sig,
+                &sig,
+                &commit_message,
+                &repo.find_tree(tree_id)?,
+                &parents,
+            )?;
+            let contents = str::from_utf8(&buf)?.to_string();
+            let mut outbuf = Vec::new();
 
-        // get ready to commit
-        let buf = repo.commit_create_buffer(
-            &sig,
-            &sig,
-            &format!(
-                "Set GPG ID to {} ({})",
-                gpg_keys.join(", "),
-                &path.display().to_string()[*PASSWORD_STORE_LEN..]
-            ),
-            &repo.find_tree(tree_id)?,
-            &parents,
-        )?;
-        let contents = str::from_utf8(&buf)?.to_string();
-        let mut outbuf = Vec::new();
+            ctx.set_armor(true);
+            ctx.sign_detached(&*buf, &mut outbuf)?;
 
-        ctx.set_armor(true);
-        ctx.sign_detached(&*buf, &mut outbuf)?;
+            let out = str::from_utf8(&outbuf)?;
+            repo.commit_signed(&contents, &out, Some("gpgsig"))?
+        } else {
+            repo.commit(
+                Some("HEAD"),
+                &sig,
+                &sig,
+                &commit_message,
+                &repo.find_tree(tree_id)?,
+                &parents,
+            )?
+        };
 
-        let out = str::from_utf8(&outbuf)?;
-        let commit = repo.commit_signed(&contents, &out, Some("gpgsig"))?;
-
-        // If you use "HEAD" as the ref to change, master isn't updated. Short
-        // refs don't work.
-        repo.reference(
-            "refs/heads/master",
-            commit,
-            true,
-            &format!(
-                "Set GPG ID to {} ({})",
-                gpg_keys.join(", "),
-                &path.display().to_string()[*PASSWORD_STORE_LEN..]
-            ),
-        )?;
-
-        // TODO: remove
-        dbg!(commit);
+        repo.reference("refs/heads/master", commit, true, &ref_message)?;
     }
 
     Ok(())

@@ -9,24 +9,24 @@ use std::str;
 use anyhow::{Context, Result};
 use data_encoding::HEXLOWER;
 use ring::digest;
-use zeroize::Zeroize;
 
 use crate::consts::{EDITOR, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, PASSWORD_STORE_UMASK};
 use crate::util;
 use crate::util::EditMode;
 use crate::PassrsError;
 
-pub fn edit(pass_name: String) -> Result<()> {
+pub fn edit(secret_name: String) -> Result<()> {
     // 1. Decrypt file to /dev/shm/{exe}.{20 rand alnum chars}/{5 rand
     // alnum}-path-components-except-for-root.txt
-    let temp_path = self::temp_file(&pass_name)?;
-    util::create_descending_dirs(&temp_path)?;
-    let file = util::canonicalize_path(&pass_name)?;
+    let temp_path = self::temp_file(&secret_name)?;
+    let file = util::canonicalize_path(&secret_name)?;
+
+    util::create_dirs_to_file(&temp_path)?;
 
     // If file doesn't exist, create empty Vec for contents (we can't decrypt a
     // nonexistent file). This is the cleanest solution without throwing
     // conditionals everywhere to ensure the file exists.
-    let mut contents = if file.is_file() {
+    let contents = if file.is_file() {
         util::decrypt_file_into_bytes(&file)?
     } else {
         Vec::new()
@@ -40,7 +40,6 @@ pub fn edit(pass_name: String) -> Result<()> {
         .open(&temp_path)?;
 
     temp_file.write_all(&contents)?;
-    contents.zeroize();
 
     // 2. Spawn editor of that file
     Command::new(&*EDITOR)
@@ -64,21 +63,9 @@ pub fn edit(pass_name: String) -> Result<()> {
 
     let new_hash = HEXLOWER.encode(digest::digest(&digest::SHA256, &new_contents).as_ref());
 
-    // 5a. If the hashes are the same, nothing changed
-    if hash == new_hash {
-        new_contents.zeroize();
-        fs::remove_file(&temp_path)?;
-        fs::remove_dir(
-            PathBuf::from(&temp_path)
-                .parent()
-                .with_context(|| "Path did not contain a parent")?,
-        )?;
-
-        return Err(PassrsError::ContentsUnchanged.into());
-    // 5b. If the hashes are different but the user didn't enter anything,
-    // treat that as a user abort
-    } else if new_contents.is_empty() {
-        new_contents.zeroize();
+    // 5a. If the hashes are different but the user didn't enter anything, treat
+    // that as a user abort
+    if new_contents.is_empty() {
         fs::remove_file(&temp_path)?;
         fs::remove_dir(
             PathBuf::from(&temp_path)
@@ -87,15 +74,23 @@ pub fn edit(pass_name: String) -> Result<()> {
         )?;
 
         return Err(PassrsError::UserAbort.into());
+    // 5b. If the hashes are the same, nothing changed
+    } else if hash == new_hash {
+        fs::remove_file(&temp_path)?;
+        fs::remove_dir(
+            PathBuf::from(&temp_path)
+                .parent()
+                .with_context(|| "Path did not contain a parent")?,
+        )?;
+
+        return Err(PassrsError::ContentsUnchanged.into());
     }
-    // 5c. If the hashes are different, we are clear to proceed
 
     // 6. Encrypt contents of temp_file to file in store
     util::encrypt_bytes_into_file(&new_contents, &file, EditMode::Clobber)?;
-    new_contents.zeroize();
-    util::commit(format!("Edit secret for {} using {}", pass_name, *EDITOR))?;
+    util::commit(format!("Edit secret for {} using {}", secret_name, *EDITOR))?;
 
-    // 7. delete temporaries
+    // 7. delete temporary file and directory
     fs::remove_file(&temp_path)?;
     fs::remove_dir(
         PathBuf::from(&temp_path)
@@ -110,17 +105,27 @@ fn temp_file<S>(path: S) -> Result<String>
 where
     S: AsRef<str>,
 {
-    // TODO: If /dev/shm is not accessible, fallback to the ordinary TMPDIR
-    //   location, and print a warning.
-    assert!(PathBuf::from("/dev/shm/").metadata().is_ok());
-
     let path = path.as_ref();
     let path = path.replace("/", "-");
     let folder = util::generate_chars_from_set(&*PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, 20)?;
     let file = util::generate_chars_from_set(&*PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, 5)?;
 
     let path = format!(
-        "/dev/shm/{exe}.{folder}/{file}-{path}.txt",
+        "{dir}/{exe}.{folder}/{file}-{path}.txt",
+        dir = if PathBuf::from("/dev/shm").metadata().is_ok() {
+            "/dev/shm"
+        } else {
+            let prompt = "Your system does not have /dev/shm, which means that it may\n\
+                 be difficult to securely erase the temporary non-encrypted\n\
+                 password file after editing.\n\
+                 Are you sure you would like to continue?";
+
+            if !util::prompt_yesno(prompt)? {
+                return Err(PassrsError::UserAbort.into());
+            }
+
+            "/tmp"
+        },
         exe = env::current_exe()?
             .file_name()
             .with_context(|| "Current executable doesn't have a filename...?")?

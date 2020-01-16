@@ -3,6 +3,7 @@ use std::env;
 use std::path::PathBuf;
 
 use once_cell::sync::Lazy;
+use structopt::clap::crate_version;
 
 pub const DIGITS: &[u8] = b"0123456789"; // [:digit:]
 pub const ALPHA_UPPER: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ"; // [:upper:]
@@ -10,13 +11,13 @@ pub const ALPHA_LOWER: &[u8] = b"abcdefghijklmnopqrstuvwxyz"; // [:lower:]
 pub const SPECIAL: &[u8] = b"!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"; // [:punct:]
 
 pub static VERSION: Lazy<String> = Lazy::new(|| {
-    use structopt::clap::crate_version;
-
     let mut ver = crate_version!().to_owned();
     let commit_hash = env!("GIT_HASH");
+
     if commit_hash != "" {
         ver = format!("{} ({})", ver, commit_hash);
     }
+
     ver
 });
 
@@ -30,15 +31,6 @@ pub static EDITOR: Lazy<String> = Lazy::new(|| {
         String::from("/usr/bin/vi")
     }
 });
-// FIXME: remove in favor of PASSWORD_STORE_DIR (only used for debugging rn)
-#[cfg(debug_assertions)]
-pub static DEFAULT_STORE_PATH: Lazy<PathBuf> = Lazy::new(|| PathBuf::from("/tmp/passrstest/"));
-
-#[cfg(not(debug_assertions))]
-pub static DEFAULT_STORE_PATH: Lazy<PathBuf> = Lazy::new(|| match env::var("PASSWORD_STORE_DIR") {
-    Ok(store) => PathBuf::from(store),
-    Err(_) => PathBuf::from(format!("{}/.password-store/", *HOME)),
-});
 
 pub static GPG_ID_FILE: Lazy<PathBuf> =
     Lazy::new(|| PathBuf::from(&*PASSWORD_STORE_DIR.join(".gpg-id")));
@@ -47,15 +39,14 @@ pub static PASSRS_UNCLIP_HASH: Lazy<String> =
 pub static PASSRS_GIT_BINARY: Lazy<String> =
     Lazy::new(|| env::var("PASSRS_GIT_BINARY").unwrap_or_else(|_| String::from("/usr/bin/git")));
 // used to allow comparisons with the password store dir without having to convert it w/ to_string()
-pub static PASSWORD_STORE_STRING: Lazy<String> =
-    Lazy::new(|| PASSWORD_STORE_DIR.display().to_string());
+pub static STORE_STRING: Lazy<String> = Lazy::new(|| PASSWORD_STORE_DIR.display().to_string());
 // used to prevent the need to litter `PASSWORD_STORE_DIR.display().to_string().len()` everywhere
-pub static PASSWORD_STORE_LEN: Lazy<usize> = Lazy::new(|| PASSWORD_STORE_STRING.len());
+pub static STORE_LEN: Lazy<usize> = Lazy::new(|| STORE_STRING.len());
 
 // pass(1)
 pub static PASSWORD_STORE_DIR: Lazy<PathBuf> = Lazy::new(|| match env::var("PASSWORD_STORE_DIR") {
     Ok(store) => PathBuf::from(store),
-    Err(_) => DEFAULT_STORE_PATH.to_path_buf(),
+    Err(_) => PathBuf::from(format!("{}/.password-store/", *HOME)),
 });
 pub static PASSWORD_STORE_KEY: Lazy<Vec<String>> = Lazy::new(|| {
     let keys = env::var("PASSWORD_STORE_KEY").unwrap_or_default();

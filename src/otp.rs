@@ -11,6 +11,12 @@ pub enum HashAlgorithm {
     Sha512,
 }
 
+impl Default for HashAlgorithm {
+    fn default() -> HashAlgorithm {
+        HashAlgorithm::Sha1
+    }
+}
+
 macro_rules! otp_builder {
     ($t:ty) => {
         pub fn secret<V>(&mut self, secret: V) -> &mut $t
@@ -18,6 +24,7 @@ macro_rules! otp_builder {
             V: AsRef<[u8]>,
         {
             self.key = secret.as_ref().to_vec();
+
             self
         }
 
@@ -26,7 +33,9 @@ macro_rules! otp_builder {
             S: AsRef<[u8]>,
         {
             let secret = secret.as_ref();
-            self.key = BASE32_NOPAD.decode(secret).expect("Secret was not valid base32");
+            let secret = secret.to_ascii_uppercase();
+            self.key = BASE32_NOPAD.decode(&secret).expect("Secret was not valid base32");
+
             self
         }
 
@@ -35,6 +44,7 @@ macro_rules! otp_builder {
             S: AsRef<[u8]>,
         {
             let secret = secret.as_ref();
+
             self.secret(secret)
         }
 
@@ -47,22 +57,25 @@ macro_rules! otp_builder {
                 .decode(secret)
                 .expect("Secret was invalid hex");
             self.key = hex;
+
             self
         }
 
         pub fn output_len(&mut self, output_len: usize) -> &mut $t {
             self.output_len = output_len;
+
             self
         }
 
-        pub fn hash_function(&mut self, algo: HashAlgorithm) -> &mut $t {
+        pub fn algorithm(&mut self, algo: HashAlgorithm) -> &mut $t {
             self.algo = algo;
+
             self
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct HOTPBuilder {
     key: Vec<u8>,
     counter: u64,
@@ -72,29 +85,17 @@ pub struct HOTPBuilder {
 
 #[allow(dead_code)]
 impl HOTPBuilder {
-    pub fn new() -> HOTPBuilder {
-        HOTPBuilder {
-            key: vec![],
-            counter: 0,
-            output_len: 6,
-            algo: HashAlgorithm::Sha1,
-        }
-    }
-
     otp_builder!(HOTPBuilder);
 
     pub fn counter(&mut self, counter: u64) -> &mut HOTPBuilder {
         self.counter = counter;
+
         self
     }
 
     pub fn output_length(&mut self, len: usize) -> &mut HOTPBuilder {
         self.output_len = len;
-        self
-    }
 
-    pub fn algorithm(&mut self, algo: HashAlgorithm) -> &mut HOTPBuilder {
-        self.algo = algo;
         self
     }
 
@@ -163,7 +164,7 @@ impl HOTP {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TOTPBuilder {
     key: Vec<u8>,
     counter: u64,
@@ -175,17 +176,6 @@ pub struct TOTPBuilder {
 
 #[allow(dead_code)]
 impl TOTPBuilder {
-    pub fn new() -> TOTPBuilder {
-        TOTPBuilder {
-            key: vec![],
-            counter: 0,
-            timestamp_offset: 0,
-            output_len: 6,
-            algo: HashAlgorithm::Sha1,
-            period: 30,
-        }
-    }
-
     otp_builder!(TOTPBuilder);
 
     pub fn timestamp(&mut self, timestamp: i64) -> &mut TOTPBuilder {
@@ -194,26 +184,25 @@ impl TOTPBuilder {
             .expect("Couldn't get duration since UNIX_EPOCH")
             .as_secs() as i64;
         self.timestamp_offset = timestamp - current_timestamp;
+
         self
     }
 
     pub fn counter(&mut self, counter: u64) -> &mut TOTPBuilder {
         self.counter = counter;
+
         self
     }
 
     pub fn output_length(&mut self, len: usize) -> &mut TOTPBuilder {
         self.output_len = len;
-        self
-    }
 
-    pub fn algorithm(&mut self, algo: HashAlgorithm) -> &mut TOTPBuilder {
-        self.algo = algo;
         self
     }
 
     pub fn period(&mut self, period: u64) -> &mut TOTPBuilder {
         self.period = period;
+
         self
     }
 
@@ -248,12 +237,13 @@ impl TOTP {
             .as_secs() as i64
             + self.timestamp_offset;
         let timestamp = timestamp as u64;
+
         timestamp / self.period
     }
 
     pub fn generate(&self) -> String {
         let counter = self.counter();
-        let hotp = HOTPBuilder::new()
+        let hotp = HOTPBuilder::default()
             .secret(self.key.clone())
             .counter(counter)
             .output_length(self.output_len)
@@ -261,269 +251,5 @@ impl TOTP {
             .build();
 
         hotp.generate()
-    }
-}
-
-/// Tests taken from boringauth: https://docs.rs/boringauth/0.9.0/src/boringauth/oath/totp.rs.html
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_totp_base32key_full() {
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-        let key_base32 = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_owned();
-
-        let totp = TOTPBuilder::new()
-            .base32_secret(&key_base32)
-            .timestamp(1111111109)
-            .period(70)
-            .output_length(8)
-            .algorithm(HashAlgorithm::Sha256)
-            .build();
-
-        assert_eq!(totp.key, key);
-        assert_eq!(totp.period, 70);
-        assert_eq!(totp.output_len, 8);
-
-        let code = totp.generate();
-        assert_eq!(code.len(), 8);
-        assert_eq!(code, "04696041");
-    }
-    #[test]
-    fn test_totp_base32key_simple() {
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-        let key_base32 = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_owned();
-
-        let totp = TOTPBuilder::new().base32_secret(&key_base32).build();
-
-        assert_eq!(totp.key, key);
-        assert_eq!(totp.output_len, 6);
-        assert_eq!(totp.algo, HashAlgorithm::Sha1);
-
-        let code = totp.generate();
-        assert_eq!(code.len(), 6);
-    }
-
-    #[test]
-    fn test_hotp_base32key_simple() {
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-        let key_base32 = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_owned();
-
-        let hotp = HOTPBuilder::new()
-            .base32_secret(&key_base32)
-            .algorithm(HashAlgorithm::Sha256)
-            .build();
-
-        assert_eq!(hotp.key, key);
-        assert_eq!(hotp.counter, 0);
-        assert_eq!(hotp.output_len, 6);
-        assert_eq!(hotp.algo, HashAlgorithm::Sha256);
-
-        let code = hotp.generate();
-        assert_eq!(code.len(), 6);
-        assert_eq!(code, "875740");
-    }
-
-    #[test]
-    fn test_hotp_base32key_full() {
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-        let key_base32 = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ".to_owned();
-
-        let hotp = HOTPBuilder::new()
-            .base32_secret(&key_base32)
-            .counter(5)
-            .output_length(8)
-            .algorithm(HashAlgorithm::Sha512)
-            .build();
-
-        assert_eq!(hotp.key, key);
-        assert_eq!(hotp.counter, 5);
-        assert_eq!(hotp.output_len, 8);
-        assert_eq!(hotp.algo, HashAlgorithm::Sha512);
-
-        let code = hotp.generate();
-        assert_eq!(code.len(), 8);
-        assert_eq!(code, "16848329");
-    }
-
-    #[test]
-    fn test_totp_kexkey_simple() {
-        let key_hex = "3132333435363738393031323334353637383930".to_owned();
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-
-        let totp = TOTPBuilder::new().hex_secret(&key_hex).build();
-
-        assert_eq!(totp.key, key);
-        assert_eq!(totp.output_len, 6);
-        assert_eq!(totp.algo, HashAlgorithm::Sha1);
-
-        let code = totp.generate();
-        assert_eq!(code.len(), 6);
-    }
-
-    #[test]
-    fn test_totp_hexkey_full() {
-        let key_hex = "3132333435363738393031323334353637383930".to_owned();
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-
-        let totp = TOTPBuilder::new()
-            .hex_secret(&key_hex)
-            .timestamp(1111111109)
-            .period(70)
-            .output_len(8)
-            .hash_function(HashAlgorithm::Sha256)
-            .build();
-        assert_eq!(totp.key, key);
-        assert_eq!(totp.period, 70);
-        assert_eq!(totp.output_len, 8);
-
-        let code = totp.generate();
-        assert_eq!(code.len(), 8);
-        assert_eq!(code, "04696041");
-    }
-
-    #[test]
-    fn test_hotp_hexkey_simple() {
-        let key_hex = "3132333435363738393031323334353637383930".to_owned();
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-
-        let hotp = HOTPBuilder::new()
-            .hex_secret(&key_hex)
-            .algorithm(HashAlgorithm::Sha256)
-            .build();
-
-        assert_eq!(hotp.key, key);
-        assert_eq!(hotp.counter, 0);
-        assert_eq!(hotp.output_len, 6);
-        assert_eq!(hotp.algo, HashAlgorithm::Sha256);
-
-        let code = hotp.generate();
-        assert_eq!(code.len(), 6);
-        assert_eq!(code, "875740");
-    }
-
-    #[test]
-    fn test_hotp_hexkey_full() {
-        let key_hex = "3132333435363738393031323334353637383930".to_owned();
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-
-        let hotp = HOTPBuilder::new()
-            .hex_secret(&key_hex)
-            .counter(5)
-            .output_len(8)
-            .algorithm(HashAlgorithm::Sha512)
-            .build();
-
-        assert_eq!(hotp.key, key);
-        assert_eq!(hotp.counter, 5);
-        assert_eq!(hotp.output_len, 8);
-        assert_eq!(hotp.algo, HashAlgorithm::Sha512);
-
-        let code = hotp.generate();
-        assert_eq!(code.len(), 8);
-        assert_eq!(code, "16848329");
-    }
-
-    #[test]
-    fn test_totp_asciikey_simple() {
-        let key_ascii = "12345678901234567890".to_owned();
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-
-        let totp = TOTPBuilder::new().ascii_secret(&key_ascii).build();
-
-        assert_eq!(totp.key, key);
-        assert_eq!(totp.output_len, 6);
-        assert_eq!(totp.algo, HashAlgorithm::Sha1);
-
-        let code = totp.generate();
-        assert_eq!(code.len(), 6);
-    }
-
-    #[test]
-    fn test_totp_asciikey_full() {
-        let key_ascii = "12345678901234567890".to_owned();
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-
-        let totp = TOTPBuilder::new()
-            .ascii_secret(&key_ascii)
-            .timestamp(1111111109)
-            .period(70)
-            .output_len(8)
-            .algorithm(HashAlgorithm::Sha256)
-            .build();
-        assert_eq!(totp.key, key);
-        assert_eq!(totp.period, 70);
-        assert_eq!(totp.output_len, 8);
-
-        let code = totp.generate();
-        assert_eq!(code.len(), 8);
-        assert_eq!(code, "04696041");
-    }
-
-    #[test]
-    fn test_hotp_asciikey_simple() {
-        let key_ascii = "12345678901234567890".to_owned();
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-
-        let hotp = HOTPBuilder::new()
-            .ascii_secret(&key_ascii)
-            .algorithm(HashAlgorithm::Sha256)
-            .build();
-
-        assert_eq!(hotp.key, key);
-        assert_eq!(hotp.counter, 0);
-        assert_eq!(hotp.output_len, 6);
-        assert_eq!(hotp.algo, HashAlgorithm::Sha256);
-
-        let code = hotp.generate();
-        assert_eq!(code.len(), 6);
-        assert_eq!(code, "875740");
-    }
-
-    #[test]
-    fn test_hotp_asciikey_full() {
-        let key_ascii = "12345678901234567890".to_owned();
-        let key = vec![
-            49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48,
-        ];
-
-        let hotp = HOTPBuilder::new()
-            .ascii_secret(&key_ascii)
-            .counter(5)
-            .output_len(8)
-            .algorithm(HashAlgorithm::Sha256)
-            .build();
-
-        assert_eq!(hotp.key, key);
-        assert_eq!(hotp.counter, 5);
-        assert_eq!(hotp.output_len, 8);
-        assert_eq!(hotp.algo, HashAlgorithm::Sha256);
-
-        let code = hotp.generate();
-        assert_eq!(code.len(), 8);
-        assert_eq!(code, "89697997");
     }
 }

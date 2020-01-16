@@ -1,5 +1,3 @@
-// TODO: Mac?
-
 use std::env;
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -18,6 +16,7 @@ where
     S: AsRef<[u8]>,
 {
     let contents = contents.as_ref();
+
     if env::var("WAYLAND_DISPLAY").is_ok() {
         Command::new("wl-copy")
             .arg("--trim-newline")
@@ -76,4 +75,23 @@ pub fn paste() -> Result<Vec<u8>> {
     };
 
     Ok(bytes)
+}
+
+pub fn clear() -> Result<()> {
+    if env::var("WAYLAND_DISPLAY").is_ok() {
+        Command::new("wl-copy").arg("--clear").spawn()?;
+    } else if env::var("DISPLAY").is_ok() {
+        Command::new("xclip")
+            .args(&["-in", "-selection", &PASSWORD_STORE_X_SELECTION])
+            .stdin(Stdio::piped())
+            .spawn()
+            .with_context(|| "Failed to spawn xclip")?
+            .stdin
+            .with_context(|| "stdin wasn't captured")?
+            .write_all(b"")?;
+    } else {
+        // unsupported system
+    }
+
+    Ok(())
 }

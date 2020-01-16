@@ -1,3 +1,26 @@
+// https://github.com/softprops/treeline/blob/eaaa03a5fac200fb5255c8aa927de43e7974745f/src/lib.rs
+// Original work Copyright (c) 2015-2016 Doug Tangren
+// Modified work Copyright (c) 2019 Cole Helbling
+//
+// Permission is hereby granted, free of charge, to any person obtaining
+// a copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to
+// the following conditions:
+//
+// The above copyright notice and this permission notice shall be
+// included in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+// EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+// NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+// LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+// OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+// WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 use std::fmt;
 use std::fmt::Display;
 use std::fs;
@@ -19,12 +42,17 @@ where
     P: AsRef<Path>,
 {
     let path = path.as_ref().canonicalize()?;
+
     let result = fs::read_dir(&path)?.filter_map(|e| e.ok()).fold(
-        Tree(path, Vec::new()),
+        Tree {
+            root: path,
+            tree: Vec::new(),
+        },
         |mut root, entry| {
             let meta = entry
                 .metadata()
                 .expect("Path doesn't exist (failed to get metadata)");
+
             if entry
                 .file_name()
                 .to_str()
@@ -32,20 +60,28 @@ where
                 .unwrap_or(false)
             {
                 if meta.is_dir() {
-                    root.1
+                    root.tree
                         .push(tree(entry.path()).expect("Couldn't create branch"));
                 } else {
-                    root.1.push(Tree(entry.path(), Vec::new()));
+                    root.tree.push(Tree {
+                        root: entry.path(),
+                        tree: Vec::new(),
+                    });
                 }
             }
+
             root
         },
     );
+
     Ok(result)
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct Tree(pub PathBuf, pub Vec<Tree>);
+pub struct Tree {
+    pub root: PathBuf,
+    pub tree: Vec<Tree>,
+}
 
 impl Tree {
     fn draw_tree(f: &mut fmt::Formatter, leaves: &[Tree], prefix: Vec<bool>) -> fmt::Result {
@@ -53,17 +89,12 @@ impl Tree {
             let last = i >= leaves.len() - 1;
             let mut prefix = prefix.clone();
             let leaf_name = leaf
-                .0
+                .root
                 .file_name()
                 .expect("Leaf didn't have a filename")
                 .to_str()
                 .expect("Couldn't convert filename to str");
 
-            // If the user has enabled signing, every .sig file will appear in
-            // the tree. We don't want that, so just continue if we hit one.
-            if leaf_name.ends_with(".sig") {
-                continue;
-            }
             for s in &prefix {
                 if *s {
                     write!(f, "{}", BLANK)?;
@@ -71,8 +102,9 @@ impl Tree {
                     write!(f, "{}", LINE)?;
                 }
             }
+
             if last {
-                if leaf.0.is_dir() {
+                if leaf.root.is_dir() {
                     writeln!(
                         f,
                         "{}{blue}{bold}{}{reset}",
@@ -87,7 +119,7 @@ impl Tree {
                 } else {
                     writeln!(f, "{}{}", CORNER, leaf_name)?;
                 }
-            } else if leaf.0.is_dir() {
+            } else if leaf.root.is_dir() {
                 writeln!(
                     f,
                     "{}{blue}{bold}{}{reset}",
@@ -103,9 +135,9 @@ impl Tree {
                 writeln!(f, "{}{}", EDGE, leaf_name)?;
             }
 
-            if !leaf.1.is_empty() {
+            if !leaf.tree.is_empty() {
                 prefix.push(last);
-                let _ = Self::draw_tree(f, &leaf.1, prefix);
+                let _ = Self::draw_tree(f, &leaf.tree, prefix);
             }
         }
         write!(f, "")
@@ -114,17 +146,17 @@ impl Tree {
 
 impl Display for Tree {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let name = if self.0 == PathBuf::from(&*PASSWORD_STORE_DIR) {
+        let name = if self.root == *PASSWORD_STORE_DIR {
             "Password Store"
         } else {
-            self.0
+            self.root
                 .file_name()
                 .expect("Path didn't have a filename")
                 .to_str()
                 .expect("Couldn't convert filename to str")
         };
 
-        if self.0.is_dir() {
+        if self.root.is_dir() {
             writeln!(
                 f,
                 "{bold}{blue}{}{reset}",
@@ -137,7 +169,7 @@ impl Display for Tree {
             writeln!(
                 f,
                 "{}",
-                self.0
+                self.root
                     .file_name()
                     .expect("Leaf didn't have a filename")
                     .to_str()
@@ -145,6 +177,6 @@ impl Display for Tree {
             )?;
         }
 
-        Self::draw_tree(f, &self.1, Vec::new())
+        Self::draw_tree(f, &self.tree, Vec::new())
     }
 }

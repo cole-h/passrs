@@ -1,43 +1,33 @@
 use std::fs;
-use std::io;
-use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 
 use anyhow::Result;
-use termion::input::TermRead;
 
 use crate::consts::PASSWORD_STORE_UMASK;
 use crate::util;
 use crate::util::EditMode;
+use crate::Flags;
 use crate::PassrsError;
 
-pub fn insert(echo: bool, multiline: bool, force: bool, secret_name: String) -> Result<()> {
+pub fn insert(secret_name: String, flags: Flags) -> Result<()> {
+    let echo = flags.echo;
+    let multiline = flags.multiline;
+    let force = flags.force;
     let path = util::canonicalize_path(&secret_name)?;
 
-    util::create_descending_dirs(&path)?;
+    util::create_dirs_to_file(&path)?;
 
     if !force && util::path_exists(&path)? {
-        let stdin = io::stdin();
-        let mut stdin = stdin.lock();
-        let stdout = io::stdout();
-        let mut stdout = stdout.lock();
+        let prompt = format!("An entry exists for {}. Overwrite it?", secret_name);
 
-        write!(
-            stdout,
-            "An entry exists for {}. Overwrite it? [y/N] ",
-            secret_name
-        )?;
-        io::stdout().flush()?;
-
-        match TermRead::read_line(&mut stdin)? {
-            Some(reply) if reply.starts_with('y') || reply.starts_with('Y') => {
-                fs::OpenOptions::new()
-                    .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
-                    .write(true)
-                    .truncate(true)
-                    .open(&path)?;
-            }
-            _ => return Err(PassrsError::UserAbort.into()),
+        if util::prompt_yesno(prompt)? {
+            fs::OpenOptions::new()
+                .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
+                .write(true)
+                .truncate(true)
+                .open(&path)?;
+        } else {
+            return Err(PassrsError::UserAbort.into());
         }
     }
 

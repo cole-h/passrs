@@ -14,11 +14,10 @@ use tui::layout::{Constraint, Direction, Layout};
 use tui::style::{Color, Modifier, Style};
 use tui::widgets::{Block, Borders, Paragraph, SelectableList, Text, Widget};
 use tui::Terminal;
-use zeroize::Zeroize;
 
+use self::event::{Event, Events};
 use crate::clipboard;
 use crate::consts::PASSWORD_STORE_DIR;
-use crate::event::{Event, Events};
 use crate::util;
 use crate::PassrsError;
 
@@ -60,24 +59,6 @@ impl Ui {
             selected: Some(0),
         }
     }
-
-    // TODO: use this to resize the UI based on length
-    // fn max_len(&self) -> Option<u16> {
-    //     let mut max_len = 0;
-    //     for entry in &self.entries {
-    //         max_len = if entry.len() > max_len {
-    //             entry.len()
-    //         } else {
-    //             max_len
-    //         };
-    //     }
-
-    //     if max_len == 0 {
-    //         None
-    //     } else {
-    //         Some(max_len as u16)
-    //     }
-    // }
 }
 
 /// +-<binary name>--------------------------------------------+
@@ -100,13 +81,13 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
 
     let mut app = Ui::new(matches.clone());
     let mut entry = None;
+    let events = Events::new();
 
     let stdout = io::stdout().into_raw_mode()?;
     let stdout = MouseTerminal::from(stdout);
     let stdout = AlternateScreen::from(stdout);
     let backend = TermionBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    let events = Events::new();
 
     terminal.hide_cursor()?;
     terminal.clear()?;
@@ -117,49 +98,52 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
         let size = terminal.size()?;
 
         terminal.draw(|mut frame| {
-                let chunks = Layout::default()
-                    .direction(Direction::Vertical)
-                    .margin(1)
-                    .constraints(
-                        [
-                            Constraint::Length(3), // number of cells
-                            Constraint::Percentage(50),
-                            Constraint::Length(3), // number of cells
-                            Constraint::Percentage(50),
-                        ]
-                            .as_ref(),
-                    )
-                    .split(size);
-                Paragraph::new(
-                    [Text::raw(format!(
-                        "Found {} matching secrets. Please select an entry.",
-                        app.entries.len()
-                    ))]
-                        .iter(),
+            let chunks = Layout::default()
+                .direction(Direction::Vertical)
+                .margin(1)
+                .constraints(
+                    [
+                        Constraint::Length(3), // number of cells
+                        Constraint::Percentage(50),
+                        Constraint::Length(3), // number of cells
+                        Constraint::Percentage(50),
+                    ]
+                    .as_ref(),
                 )
-                    .block(Block::default()
-                           .title(binary_name)
-                           .title_style(Style::default().fg(Color::Red))
-                           .borders(Borders::ALL))
-                    .wrap(true)
-                    .render(&mut frame, chunks[0]);
-                SelectableList::default()
-                    .block(Block::default().borders(Borders::NONE))
-                    .items(&app.entries)
-                    .select(app.selected)
-                    .highlight_style(Style::default().fg(Color::Yellow).modifier(Modifier::BOLD))
-                    .highlight_symbol(">")
-                    .render(&mut frame, chunks[1]);
-                Paragraph::new(
-                    [Text::raw(
-                        "<↑/↓> to change the selection, <→> to show, <←> to copy, <e> to edit, <ESC> or <q> to quit",
-                    )]
-                        .iter(),
-                )
-                    .block(Block::default().borders(Borders::ALL))
-                    .wrap(true)
-                    .render(&mut frame, chunks[2]);
-            })?;
+                .split(size);
+
+            Paragraph::new(
+                [Text::raw(format!(
+                    "Found {} matching secrets. Please select an entry.",
+                    app.entries.len()
+                ))]
+                .iter(),
+            )
+            .block(
+                Block::default()
+                    .title(binary_name)
+                    .title_style(Style::default().fg(Color::Red))
+                    .borders(Borders::ALL),
+            )
+            .wrap(true)
+            .render(&mut frame, chunks[0]);
+            SelectableList::default()
+                .block(Block::default().borders(Borders::NONE))
+                .items(&app.entries)
+                .select(app.selected)
+                .highlight_style(Style::default().fg(Color::Yellow).modifier(Modifier::BOLD))
+                .highlight_symbol(">")
+                .render(&mut frame, chunks[1]);
+            Paragraph::new(
+                [Text::raw(
+                    "<↑/↓> to change the selection, <→> to show, <←> to copy, <e> to edit, <ESC> or <q> to quit"
+                )]
+                .iter(),
+            )
+            .block(Block::default().borders(Borders::ALL))
+            .wrap(true)
+            .render(&mut frame, chunks[2]);
+        })?;
 
         match events.next()? {
             Event::Input(input) => match input {
@@ -176,16 +160,13 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
                     }
                 }
                 Key::Left => {
-                    // dispatch to decrypt file and copy to clipboard -- ONLY
-                    // FIRST LINE (some people use one entry for passwords,
-                    // notes, etc., with password as the first line)
                     entry = app.selected;
+
                     if let Some(entry) = app.selected {
                         let entry = matches[entry].to_owned();
-                        let mut contents = util::decrypt_file_into_strings(&entry)?;
+                        let contents = util::decrypt_file_into_strings(&entry)?;
 
                         clipboard::clip(&contents[0], false)?;
-                        contents.zeroize();
 
                         return Ok(UiResult::CopiedToClipboard(entry));
                     }
@@ -203,12 +184,15 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
                 }
                 Key::Char('\n') | Key::Right => {
                     entry = app.selected;
+
                     break;
                 }
                 Key::Char('e') => {
                     entry = app.selected;
+
                     if let Some(entry) = app.selected {
                         let entry = matches[entry].to_owned();
+
                         return Ok(UiResult::SpawnEditor(entry));
                     }
                 }
@@ -241,8 +225,6 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
     }
 
     terminal.show_cursor()?;
-
-    // drop terminal so we can use stdout as usual
     drop(terminal);
     io::stdout().flush()?;
 
@@ -268,5 +250,103 @@ pub fn display_matches_for_target(target: &str) -> Result<UiResult> {
         reset = style::Reset
     );
 
-    Ok(display_matches(matches)?)
+    Ok(self::display_matches(matches)?)
+}
+
+mod event {
+    // https://github.com/fdehau/tui-rs/blob/0168442c224bd3cd23f1d2b6494dd236b556a124/examples/util/event.rs
+    // Original work Copyright (c) 2016 Florian Dehau
+    // Modified work Copyright (c) 2019 Cole Helbling
+    //
+    // Permission is hereby granted, free of charge, to any person obtaining a copy
+    // of this software and associated documentation files (the "Software"), to deal
+    // in the Software without restriction, including without limitation the rights
+    // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    // copies of the Software, and to permit persons to whom the Software is
+    // furnished to do so, subject to the following conditions:
+    //
+    // The above copyright notice and this permission notice shall be included in all
+    // copies or substantial portions of the Software.
+    //
+    // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    // SOFTWARE.
+
+    use std::io;
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    use termion::event::Key;
+    use termion::input::TermRead;
+
+    #[derive(Debug, Clone, Copy)]
+    struct Config {
+        pub exit_key: Key,
+        pub tick_rate: Duration,
+    }
+
+    impl Default for Config {
+        fn default() -> Config {
+            Config {
+                exit_key: Key::Char('q'),
+                tick_rate: Duration::from_micros(16666),
+            }
+        }
+    }
+
+    pub enum Event<I> {
+        Input(I),
+        Tick,
+    }
+
+    /// A small event handler that wrap termion input and tick events. Each event
+    /// type is handled in its own thread and returned to a common `Receiver`
+    pub struct Events {
+        rx: mpsc::Receiver<Event<Key>>,
+    }
+
+    impl Events {
+        pub fn new() -> Events {
+            Events::with_config(Config::default())
+        }
+
+        fn with_config(config: Config) -> Events {
+            let (tx, rx) = mpsc::channel();
+            {
+                let tx = tx.clone();
+                thread::spawn(move || {
+                    let stdin = io::stdin();
+                    for evt in stdin.keys() {
+                        if let Ok(key) = evt {
+                            if tx.send(Event::Input(key)).is_err() {
+                                return;
+                            }
+                            if key == config.exit_key {
+                                return;
+                            }
+                        }
+                    }
+                });
+            }
+            thread::spawn(move || {
+                loop {
+                    // NOTE: This returns a SendError if the user ends the UI (one
+                    // way or another) in between ticks.
+                    let _ = tx.send(Event::Tick);
+                    thread::sleep(config.tick_rate);
+                }
+            });
+
+            Events { rx }
+        }
+
+        pub fn next(&self) -> Result<Event<Key>, mpsc::RecvError> {
+            self.rx.recv()
+        }
+    }
 }
