@@ -361,7 +361,7 @@ dependencies = [
  "regex 1.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc_tools_util 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "structopt 0.3.7 (git+https://github.com/TeXitoi/structopt)",
+ "structopt 0.3.7 (git+https://github.com/TeXitoi/structopt?rev=ba298f8)",
  "termcolor 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "termion 1.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "thiserror 1.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -532,17 +532,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "structopt"
 version = "0.3.7"
-source = "git+https://github.com/TeXitoi/structopt#ba298f8689cd10ea36c646b705a6a5d3fca6cf92"
+source = "git+https://github.com/TeXitoi/structopt?rev=ba298f8#ba298f8689cd10ea36c646b705a6a5d3fca6cf92"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "structopt-derive 0.4.0 (git+https://github.com/TeXitoi/structopt)",
+ "structopt-derive 0.4.0 (git+https://github.com/TeXitoi/structopt?rev=ba298f8)",
 ]
 
 [[package]]
 name = "structopt-derive"
 version = "0.4.0"
-source = "git+https://github.com/TeXitoi/structopt#ba298f8689cd10ea36c646b705a6a5d3fca6cf92"
+source = "git+https://github.com/TeXitoi/structopt?rev=ba298f8#ba298f8689cd10ea36c646b705a6a5d3fca6cf92"
 dependencies = [
  "heck 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro-error 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -890,8 +890,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum sourcefile 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)" = "4bf77cb82ba8453b42b6ae1d692e4cdc92f9a47beaf89a847c8be83f4e328ad3"
 "checksum spin 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 "checksum static_assertions 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-"checksum structopt 0.3.7 (git+https://github.com/TeXitoi/structopt)" = "<none>"
-"checksum structopt-derive 0.4.0 (git+https://github.com/TeXitoi/structopt)" = "<none>"
+"checksum structopt 0.3.7 (git+https://github.com/TeXitoi/structopt?rev=ba298f8)" = "<none>"
+"checksum structopt-derive 0.4.0 (git+https://github.com/TeXitoi/structopt?rev=ba298f8)" = "<none>"
 "checksum syn 1.0.13 (registry+https://github.com/rust-lang/crates.io-index)" = "1e4ff033220a41d1a57d8125eab57bf5263783dfdcc18688b1dacc6ce9651ef8"
 "checksum syn-mid 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "9fd3937748a7eccff61ba5b90af1a20dbf610858923a9192ea0ecb0cb77db1d0"
 "checksum termcolor 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "bb6bfa289a4d7c5766392812c0a1f4c1ba45afa1ad47803c11e1f407d846d75f"

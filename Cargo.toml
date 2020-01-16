@@ -37,7 +37,7 @@ once_cell = "1.3.0"
 psutil = "1.7.0"
 ring = { version = "0.16.9", default-features = false }
 # structopt = "0.3.0"
-structopt = { git = "https://github.com/TeXitoi/structopt", default-features = false }
+structopt = { git = "https://github.com/TeXitoi/structopt", default-features = false, rev = "ba298f8" }
 termcolor = "1.0.0"
 termion = "1.5.0"
 thiserror = "1.0.0"
