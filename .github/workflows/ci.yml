@@ -1,7 +1,17 @@
 name: CI
 
-on: [push, pull_request]
-
+on:
+  pull_request:
+    paths:
+      - '**.rs'
+      - '**.toml'
+      - '.github/workflows/ci.yml'
+  push:
+    branches: [master]
+    paths:
+      - '**.rs'
+      - '**.toml'
+      - '.github/workflows/ci.yml'
 jobs:
   format:
     runs-on: ubuntu-latest
@@ -35,7 +45,25 @@ jobs:
       run: sudo apt-get install libgpg-error-dev libgpgme-dev
     - name: Run build
       run: cargo build --verbose
+      env:
+        RUST_BACKTRACE: 1
+        CARGO_INCREMENTAL: 0
+        RUSTFLAGS: "-C debuginfo=0"
+
+  gpg:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install GPG libs
+      run: sudo apt-get install libgpg-error-dev libgpgme-dev
+    - name: Import secret test key
+      run: gpg --import ${{ github.workspace }}/tests/passrs@testuser.secret.asc
+    - name: Trust test key
+      run: echo "4B0D9BBAC5C8329C035B125CF6EF0D39C5F84192:6:" | gpg --import-ownertrust
     - name: Run tests
       run: cargo test --verbose
       env:
+        RUST_BACKTRACE: 1
+        CARGO_INCREMENTAL: 0
+        RUSTFLAGS: "-C debuginfo=0"
         PASSWORD_STORE_DIR: ${{ github.workspace }}/tests/test_repo
