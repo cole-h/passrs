@@ -25,7 +25,7 @@ static URI_REGEX: Lazy<Regex> = Lazy::new(|| {
     .expect("Failed to compile OTP URI regex")
 });
 
-pub fn validate<S>(uri: S) -> Result<()>
+pub(crate) fn validate<S>(uri: S) -> Result<()>
 where
     S: AsRef<str>,
 {
@@ -45,7 +45,7 @@ where
     Ok(())
 }
 
-pub fn get_base32_secret<S>(uri: S) -> Result<String>
+pub(crate) fn get_base32_secret<S>(uri: S) -> Result<String>
 where
     S: AsRef<str>,
 {
@@ -64,7 +64,7 @@ where
     Ok(secret)
 }
 
-pub fn get_period<S>(uri: S) -> Result<u64>
+pub(crate) fn get_period<S>(uri: S) -> Result<u64>
 where
     S: AsRef<str>,
 {
@@ -82,7 +82,7 @@ where
     Ok(period)
 }
 
-pub fn get_digits<S>(uri: S) -> Result<usize>
+pub(crate) fn get_digits<S>(uri: S) -> Result<usize>
 where
     S: AsRef<str>,
 {
@@ -100,7 +100,7 @@ where
     Ok(digits)
 }
 
-pub fn get_algorithm<S>(uri: S) -> Result<HashAlgorithm>
+pub(crate) fn get_algorithm<S>(uri: S) -> Result<HashAlgorithm>
 where
     S: AsRef<str>,
 {
@@ -111,7 +111,7 @@ where
         .with_context(|| "Failed to get regex captures")?;
 
     let algo = match captures.name("algorithm") {
-        Some(algo) => match algo.as_str().to_lowercase().as_ref() {
+        Some(algo) => match algo.as_str().to_ascii_lowercase().as_ref() {
             "sha1" => HashAlgorithm::Sha1,
             "sha256" => HashAlgorithm::Sha256,
             "sha512" => HashAlgorithm::Sha512,

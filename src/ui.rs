@@ -1,3 +1,13 @@
+//! Fancy user interface
+//!
+//! # ui
+//!
+//! This module is used to display a fancy selection window when more than one
+//! entry is found when using subcommands like [`show`] or [`otp-code`].
+//!
+//! [`show`]: ../subcmds/show/index.html
+//! [`otp-code`]: ../subcmds/otp/code/index.html
+
 use std::env;
 use std::io;
 use std::io::Write;
@@ -17,10 +27,11 @@ use tui::Terminal;
 
 use self::event::{Event, Events};
 use crate::clipboard;
-use crate::consts::PASSWORD_STORE_DIR;
+use crate::consts::STORE_LEN;
 use crate::util;
 use crate::PassrsError;
 
+#[derive(Debug)]
 pub enum UiResult {
     Success(String),
     CopiedToClipboard(String),
@@ -38,10 +49,10 @@ struct Ui {
 impl Ui {
     /// `entries` is a Vec containing the items to display as a part of the
     /// SelectableList
-    fn new(mut entries: Vec<String>) -> Self {
+    fn new(mut entries: Vec<String>) -> Ui {
         assert!(!entries.is_empty());
 
-        let entries = entries
+        let entries: Vec<String> = entries
             .iter_mut()
             // We don't want to display the path to the password store or
             // extension, so chop those parts off
@@ -50,9 +61,9 @@ impl Ui {
                     entry.truncate(entry.len() - 4);
                 }
                 // Don't show PASSWORD_STORE_DIR in entry name
-                entry[PASSWORD_STORE_DIR.display().to_string().len()..].to_owned()
+                entry[*STORE_LEN..].to_owned()
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         Ui {
             entries,
@@ -237,7 +248,7 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
 }
 
 pub fn display_matches_for_target(target: &str) -> Result<UiResult> {
-    let matches = util::find_target_single(target)?;
+    let matches = util::find_matches(target)?;
 
     if matches.len() == 1 {
         return Ok(UiResult::Success(matches[0].to_owned()));

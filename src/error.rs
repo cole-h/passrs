@@ -1,3 +1,12 @@
+//! Errors via [thiserror]
+//!
+//! # error
+//!
+//! This module contains all possible error variants related to the operation of
+//! this program.
+//!
+//! [thiserror]: https://docs.rs/thiserror
+
 use termion::color;
 use termion::style;
 use thiserror::Error;

@@ -1,3 +1,7 @@
+//! Happy little accidents
+//!
+//! # tree
+
 // https://github.com/softprops/treeline/blob/eaaa03a5fac200fb5255c8aa927de43e7974745f/src/lib.rs
 // Original work Copyright (c) 2015-2016 Doug Tangren
 // Modified work Copyright (c) 2019 Cole Helbling
@@ -43,29 +47,29 @@ where
 {
     let path = path.as_ref().canonicalize()?;
 
-    let result = fs::read_dir(&path)?.filter_map(|e| e.ok()).fold(
+    let tree = fs::read_dir(&path)?.filter_map(|e| e.ok()).fold(
         Tree {
             root: path,
-            tree: Vec::new(),
+            leaves: Vec::new(),
         },
         |mut root, entry| {
             let meta = entry
                 .metadata()
                 .expect("Path doesn't exist (failed to get metadata)");
-
-            if entry
+            let show = entry
                 .file_name()
                 .to_str()
                 .map(|s| !s.starts_with('.'))
-                .unwrap_or(false)
-            {
+                .unwrap_or(false);
+
+            if show {
                 if meta.is_dir() {
-                    root.tree
-                        .push(tree(entry.path()).expect("Couldn't create branch"));
+                    root.leaves
+                        .push(tree(entry.path()).expect("Couldn't create leaves"));
                 } else {
-                    root.tree.push(Tree {
+                    root.leaves.push(Tree {
                         root: entry.path(),
-                        tree: Vec::new(),
+                        leaves: Vec::new(),
                     });
                 }
             }
@@ -74,29 +78,43 @@ where
         },
     );
 
-    Ok(result)
+    Ok(tree)
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tree {
     pub root: PathBuf,
-    pub tree: Vec<Tree>,
+    pub leaves: Vec<Tree>,
 }
 
 impl Tree {
-    fn draw_tree(f: &mut fmt::Formatter, leaves: &[Tree], prefix: Vec<bool>) -> fmt::Result {
-        for (i, leaf) in leaves.iter().enumerate() {
-            let last = i >= leaves.len() - 1;
+    fn root_path(&self) -> String {
+        self.root.display().to_string()
+    }
+
+    fn draw_tree(
+        f: &mut fmt::Formatter,
+        mut branches: Vec<Tree>,
+        prefix: Vec<bool>,
+    ) -> fmt::Result {
+        branches.sort_by(|a, b| {
+            a.root_path()
+                .to_ascii_lowercase()
+                .cmp(&b.root_path().to_ascii_lowercase())
+        });
+
+        for (i, branch) in branches.iter().enumerate() {
+            let last = i >= branches.len() - 1;
             let mut prefix = prefix.clone();
-            let leaf_name = leaf
+            let leaf_name = branch
                 .root
                 .file_name()
                 .expect("Leaf didn't have a filename")
                 .to_str()
                 .expect("Couldn't convert filename to str");
 
-            for s in &prefix {
-                if *s {
+            for pre in &prefix {
+                if *pre {
                     write!(f, "{}", BLANK)?;
                 } else {
                     write!(f, "{}", LINE)?;
@@ -104,7 +122,7 @@ impl Tree {
             }
 
             if last {
-                if leaf.root.is_dir() {
+                if branch.root.is_dir() {
                     writeln!(
                         f,
                         "{}{blue}{bold}{}{reset}",
@@ -119,7 +137,7 @@ impl Tree {
                 } else {
                     writeln!(f, "{}{}", CORNER, leaf_name)?;
                 }
-            } else if leaf.root.is_dir() {
+            } else if branch.root.is_dir() {
                 writeln!(
                     f,
                     "{}{blue}{bold}{}{reset}",
@@ -135,11 +153,12 @@ impl Tree {
                 writeln!(f, "{}{}", EDGE, leaf_name)?;
             }
 
-            if !leaf.tree.is_empty() {
+            if !branch.leaves.is_empty() {
                 prefix.push(last);
-                let _ = Self::draw_tree(f, &leaf.tree, prefix);
+                let _ = Self::draw_tree(f, branch.leaves.clone(), prefix);
             }
         }
+
         write!(f, "")
     }
 }
@@ -177,6 +196,6 @@ impl Display for Tree {
             )?;
         }
 
-        Self::draw_tree(f, &self.tree, Vec::new())
+        Self::draw_tree(f, self.leaves.clone(), Vec::new())
     }
 }

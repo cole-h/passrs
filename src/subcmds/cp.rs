@@ -7,14 +7,14 @@ use crate::consts::PASSWORD_STORE_UMASK;
 use crate::util;
 use crate::PassrsError;
 
-pub fn cp(source: String, dest: String, force: bool) -> Result<()> {
+pub(crate) fn cp(source: String, dest: String, force: bool) -> Result<()> {
     let source_path = util::canonicalize_path(&source)?;
     let is_file = match fs::metadata(&source_path) {
         Ok(meta) => meta.is_file(),
         Err(_) => false,
     };
     let dest_path = if is_file {
-        util::exact_path(&format!("{}.gpg", dest))?
+        util::exact_path([&dest, ".gpg"].concat())?
     } else {
         util::exact_path(&dest)?
     };
@@ -39,8 +39,11 @@ pub fn cp(source: String, dest: String, force: bool) -> Result<()> {
             }
         }
 
-        util::copy(&source_path, &dest_path, None)?;
-        util::commit(format!("Copy {} to {}", source, dest))?;
+        util::copy(&source_path, &dest_path)?;
+        util::commit(
+            Some([&source_path, &dest_path]),
+            format!("Copy {} to {}", source, dest),
+        )?;
     } else {
         if !util::path_exists(&source_path)? {
             return Err(PassrsError::PathDoesntExist(source).into());
@@ -57,8 +60,11 @@ pub fn cp(source: String, dest: String, force: bool) -> Result<()> {
             }
         }
 
-        util::copy(&source_path, &dest_path, None)?;
-        util::commit(format!("Copy {} to {}", source, dest))?;
+        util::copy(&source_path, &dest_path)?;
+        util::commit(
+            Some([&source_path, &dest_path]),
+            format!("Copy {} to {}", source, dest),
+        )?;
     }
 
     Ok(())

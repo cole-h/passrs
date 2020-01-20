@@ -1,3 +1,10 @@
+//! General utilities
+//!
+//! # util
+//!
+//! This module houses most of the meat and potatoes of `passrs`. Any generic,
+//! helpful function used in more than one place finds its home here.
+
 use std::fs;
 use std::io;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -20,7 +27,8 @@ use crate::consts::{
 };
 use crate::PassrsError;
 
-/// Paths may be an absolute path to the entry, or relative to the store's root.
+/// Helper function to return the path to the specified entry. Paths may be an
+/// absolute path to the entry, or relative to the store's root.
 pub fn canonicalize_path<S>(path: S) -> Result<PathBuf>
 where
     S: AsRef<str>,
@@ -29,25 +37,31 @@ where
     let mut path = path.replace("~", &HOME);
 
     if !path.contains(&*STORE_STRING) {
-        path = [&*STORE_STRING, "/", path.as_str()].concat();
+        path = [&*STORE_STRING, "/", &path].concat();
     }
 
     self::check_sneaky_paths(&path)?;
 
-    path = match fs::metadata(&path) {
-        Ok(meta) => {
-            if meta.is_dir() {
-                path
-            } else {
-                path + ".gpg"
-            }
+    let enc_path = [&path, ".gpg"].concat();
+    let path = if fs::metadata(&enc_path).is_ok() {
+        enc_path
+    } else if let Ok(meta) = fs::metadata(&path) {
+        if meta.is_dir() || path.ends_with('/') {
+            path
+        } else {
+            path + ".gpg"
         }
-        Err(_) => path + ".gpg",
+    } else if path.ends_with('/') {
+        path
+    } else {
+        path + ".gpg"
     };
 
     Ok(PathBuf::from(path))
 }
 
+/// Helper function that ensures that the path is part of the store, but does
+/// not assume it exists.
 pub fn exact_path<S>(path: S) -> Result<PathBuf>
 where
     S: AsRef<str>,
@@ -64,6 +78,8 @@ where
     Ok(PathBuf::from(path))
 }
 
+/// Pretty self explanatory. If neither the specified store directory or
+/// `.gpg-id` file exist, the store doesn't exist.
 pub fn verify_store_exists() -> Result<()> {
     let store_meta = fs::metadata(&*PASSWORD_STORE_DIR);
     let id_meta = fs::metadata(&*GPG_ID_FILE);
@@ -75,7 +91,7 @@ pub fn verify_store_exists() -> Result<()> {
     Ok(())
 }
 
-/// Returns `false` if path does not exist (success), `true` if it does exist.
+/// Returns `false` if path does not exist, `true` if it does exist.
 pub fn path_exists<P>(path: P) -> Result<bool>
 where
     P: AsRef<Path>,
@@ -92,6 +108,8 @@ where
     Ok(false)
 }
 
+/// Paths with `..` are not allowed to prevent changing things outside of the
+/// store (or at least aims to).
 pub fn check_sneaky_paths<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
@@ -106,8 +124,8 @@ where
     Ok(())
 }
 
-/// Search in PASSWORD_STORE_DIR for `target`.
-pub fn find_target_single<S>(target: S) -> Result<Vec<String>>
+/// Search the password store for entries that match the specified `target`.
+pub fn find_matches<S>(target: S) -> Result<Vec<String>>
 where
     S: AsRef<str>,
 {
@@ -146,16 +164,14 @@ where
     if matches.is_empty() {
         Err(PassrsError::NoMatchesFound(target.to_owned()).into())
     } else {
-        Ok(matches
-            .iter()
-            .rev()
-            .map(ToOwned::to_owned)
-            .collect::<Vec<_>>())
+        matches.sort_by(|a, b| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()));
+
+        Ok(matches)
     }
 }
 
-/// Decrypts the file into a `Vec` of `String`s. This will return an `Err` if
-/// the plaintext is not encoded in valid UTF8.
+/// Decrypt the specified file into a `Vec<String>`s. This will return an `Err`
+/// if the plaintext is not encoded in valid UTF8.
 pub fn decrypt_file_into_strings<P>(path: P) -> Result<Vec<String>>
 where
     P: AsRef<Path>,
@@ -178,7 +194,7 @@ where
     Ok(out)
 }
 
-/// Decrypts the given file into a `Vec` of bytes.
+/// Decrypts the specified file into a `Vec<u8>`.
 pub fn decrypt_file_into_bytes<P>(path: P) -> Result<Vec<u8>>
 where
     P: AsRef<Path>,
@@ -199,15 +215,22 @@ where
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// How to modify the file -- overwrite with new contents, or append new
+/// contents to the end.
 pub enum EditMode {
+    /// Completely overwrite the file.
     Clobber,
+    /// Append to the file.
     Append,
 }
 
-/// Encrypts data (a slice of bytes) PASSWORD_STORE_KEY or the key(s) listed in
-/// `.gpg-id`. Callers must verify that `PASSWORD_STORE_DIR` exists and is
-/// initialized using `verify_store_exists`. If `append` is true, append the
-/// bytes; otherwise, overwrite the file.
+/// Encrypts a slice of bytes with [`PASSWORD_STORE_KEY`] or the key(s) listed
+/// in `.gpg-id`. Callers must verify that [`PASSWORD_STORE_DIR`] exists and is
+/// initialized using `verify_store_exists`. If `editmode` is `Append`, append
+/// the bytes; otherwise, overwrite the file.
+///
+/// [`PASSWORD_STORE_KEY`]: ../consts/static.PASSWORD_STORE_KEY.html
+/// [`PASSWORD_STORE_DIR`]: ../consts/static.PASSWORD_STORE_DIR.html
 pub fn encrypt_bytes_into_file<P, V>(to_encrypt: V, path: P, editmode: EditMode) -> Result<()>
 where
     P: AsRef<Path>,
@@ -235,11 +258,11 @@ where
 
     keys.extend(PASSWORD_STORE_KEY.clone());
 
-    let encryption_keys = keys
+    let encryption_keys: Vec<gpgme::Key> = keys
         .iter()
         .map(|k| ctx.get_secret_key(k))
         .filter_map(|k| k.ok())
-        .collect::<Vec<_>>();
+        .collect();
 
     if encryption_keys.is_empty() {
         return Err(PassrsError::NoSigningKeyFound.into());
@@ -273,7 +296,10 @@ where
     Ok(())
 }
 
-/// Creates all directories to allow `file` to be created.
+/// A light wrapper around [`fs::create_dir_all`] that creates all directories
+/// to allow the specified `file` to be created.
+///
+/// [`fs::create_dir_all`]: https://doc.rust-lang.org/std/fs/fn.create_dir_all.html
 pub fn create_dirs_to_file<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
@@ -296,7 +322,8 @@ where
     Ok(())
 }
 
-/// Analogous to coreutils' `rmdir -p`.
+/// Analogous to coreutils' `rmdir -p` -- delete directories down to the
+/// specified path unless the directory is not empty, in which case we stop.
 pub fn remove_dirs_to_file<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
@@ -308,6 +335,7 @@ where
     if !path.exists() {
         return Ok(());
     }
+
     if path.is_file() {
         fs::remove_file(&path)?;
     }
@@ -329,6 +357,10 @@ where
     Ok(())
 }
 
+/// Change the permissions of every file and directory specified, using
+/// [`PASSWORD_STORE_UMASK`], unless it does not belong to the user.
+///
+/// [`PASSWORD_STORE_UMASK`]: ../consts/static.PASSWORD_STORE_UMASK.html
 pub fn set_permissions_recursive<P>(path: P) -> Result<()>
 where
     P: AsRef<Path>,
@@ -341,7 +373,6 @@ where
     let path_uid = if path.exists() {
         path.metadata()?.uid()
     } else {
-        // If the path doesn't exist, chances are we're going to create it
         uid
     };
 
@@ -378,6 +409,8 @@ where
     Ok(())
 }
 
+/// Find a `.gpg-id` file in the specified path and return it if found;
+/// otherwise, return an error.
 pub fn find_gpg_id<P>(path: P) -> Result<PathBuf>
 where
     P: AsRef<Path>,
@@ -387,17 +420,13 @@ where
     for entry in fs::read_dir(&path)? {
         let entry = entry?;
         let path = entry.path();
-        // let file_name = path.file_name();
         let file_name = entry.file_name();
-        // let show = entry
-        //     .file_name()
         let show = file_name
             .to_str()
             .map(|e| !e.starts_with(".git"))
             .unwrap_or(false);
 
         if show && file_name == ".gpg-id" {
-            // if show && file_name == Some(".gpg-id".as_ref()) {
             return Ok(path);
         }
     }
@@ -405,19 +434,21 @@ where
     Err(PassrsError::NoGpgIdFile(path.display().to_string()).into())
 }
 
-/// Commit everything using `commit_message` as the message, if the workspace is
-/// dirty. Callers must verify that `PASSWORD_STORE_DIR` exists and is
-/// initialized (usually by verifying the `.gpg-id` file exists and a `git` repo
-/// has been initialized).
-pub fn commit<S>(commit_message: S) -> Result<()>
+/// Commit all modified files using `commit_message` as the message, if the
+/// workspace is dirty. If a path is specified, also add that path to the git
+/// repository.
+///
+/// [`PASSWORD_STORE_DIR`]: ../consts/static.PASSWORD_STORE_DIR.html
+pub fn commit<S, P, V>(paths: Option<V>, commit_message: S) -> Result<()>
 where
     S: AsRef<str>,
+    V: AsRef<[P]>,
+    P: AsRef<Path>,
 {
     let commit_message = commit_message.as_ref();
-    let path = &*PASSWORD_STORE_DIR;
 
     // NOTE: similarly implemented in subcmds/init.rs
-    if let Ok(repo) = Repository::open(path) {
+    if let Ok(repo) = Repository::open(&*PASSWORD_STORE_DIR) {
         if repo.statuses(None)?.is_empty() {
             println!("Nothing to do");
             return Ok(());
@@ -427,13 +458,35 @@ where
         let config = repo.config()?;
         let sig = repo.signature()?;
 
-        index.add_all(["."].iter(), git2::IndexAddOption::DEFAULT, None)?;
+        if let Some(paths) = paths {
+            let mut pathspecs = Vec::new();
+
+            for path in paths.as_ref() {
+                let path = path.as_ref();
+                let path = if path.starts_with(&*STORE_STRING) {
+                    PathBuf::from(&path.display().to_string()[*STORE_LEN..])
+                } else {
+                    path.to_path_buf()
+                };
+
+                pathspecs.push(path);
+            }
+
+            index.add_all(pathspecs, git2::IndexAddOption::CHECK_PATHSPEC, None)?;
+        } else {
+            index.update_all(&["."], None)?;
+        }
+
         index.write()?;
 
         let tree_id = repo.index()?.write_tree()?;
         let mut parents = Vec::new();
 
-        if let Some(parent) = repo.head().ok().map(|h| h.target().unwrap()) {
+        if let Some(parent) = repo
+            .head()
+            .ok()
+            .map(|h| h.target().expect("HEAD had no target"))
+        {
             parents.push(repo.find_commit(parent)?);
         }
 
@@ -494,14 +547,16 @@ where
         let buf = stats.to_buf(git2::DiffStatsFormat::SHORT, 80)?;
 
         println!("[{} {:.7}] {}", branch, commit, commit_message);
-        print!("{}", str::from_utf8(&*buf).unwrap());
+        print!(
+            "{}",
+            str::from_utf8(&*buf).with_context(|| "diffstats should be valid utf8")?
+        );
 
         for entry in statuses
             .iter()
             .filter(|e| e.status() != git2::Status::CURRENT)
         {
-            // FIXME: rename detection isn't perfect. Is this a fault of us, or
-            // git2-rs?
+            // NOTE: rename detection doesn't work for recrypted files/dirs
             let index_status = match entry.status() {
                 s if s.contains(git2::Status::INDEX_NEW) => "create",
                 s if s.contains(git2::Status::INDEX_DELETED) => "delete",
@@ -509,8 +564,16 @@ where
                 s if s.contains(git2::Status::INDEX_MODIFIED) => "rewrite",
                 _ => continue,
             };
-            let old_path = entry.head_to_index().unwrap().old_file().path();
-            let new_path = entry.head_to_index().unwrap().new_file().path();
+            let old_path = entry
+                .head_to_index()
+                .with_context(|| "couldn't get differences between HEAD and index")?
+                .old_file()
+                .path();
+            let new_path = entry
+                .head_to_index()
+                .with_context(|| "couldn't get differences between HEAD and index")?
+                .new_file()
+                .path();
 
             // FIXME: similarity is not yet exposed in git2-rs
             //   https://github.com/rust-lang/git2-rs/blob/7f076f65a8ceb8dd1f8baa627982760132fdd2e9/src/diff.rs#L387
@@ -532,7 +595,9 @@ where
                     println!(" {} {} ({}%)", index_status, old.display(), percent_change);
                 }
                 (old, new) => {
-                    let path = old.or(new).unwrap();
+                    let path = old
+                        .or(new)
+                        .with_context(|| "neither old nor new were valid paths")?;
                     let tree = repo.find_tree(tree_id)?;
                     let file = tree.iter().find(|e| e.name() == path.to_str());
                     let mode = match file {
@@ -549,6 +614,13 @@ where
     Ok(())
 }
 
+/// Provided a `Vec<u8>` of characters and a length, randomly generate a
+/// password.
+///
+/// This uses the [ring] crate to generate an array of a multiple of 64 bytes
+/// for use as random indices.
+///
+/// [ring]: https://docs.rs/ring
 pub fn generate_chars_from_set<V>(set: V, len: usize) -> Result<Vec<u8>>
 where
     V: AsRef<[u8]>,
@@ -579,7 +651,10 @@ where
     Ok(secret_bytes)
 }
 
-pub fn prompt_for_secret<S>(echo: bool, multiline: bool, secret_name: S) -> Result<Option<String>>
+/// Helper function to prompt the user for a secret to be inserted or appended
+/// or otherwise added to the store, handling the bool or multiline flags as
+/// needed.
+pub fn prompt_for_secret<S>(secret_name: S, echo: bool, multiline: bool) -> Result<Option<String>>
 where
     S: AsRef<str>,
 {
@@ -615,11 +690,12 @@ where
         let input = {
             let input = stdin.read_passwd(&mut io::stdout())?;
             println!();
-            if input.is_none() {
+
+            if let Some(input) = input {
+                input
+            } else {
                 return Err(PassrsError::UserAbort.into());
             }
-
-            input.unwrap()
         };
 
         print!("Re-enter secret for {}: ", secret_name);
@@ -627,11 +703,12 @@ where
         let check = {
             let input = stdin.read_passwd(&mut io::stdout())?;
             println!();
-            if input.is_none() {
+
+            if let Some(input) = input {
+                input
+            } else {
                 return Err(PassrsError::UserAbort.into());
             }
-
-            input.unwrap()
         };
 
         if input == check {
@@ -644,6 +721,9 @@ where
     Ok(secret)
 }
 
+/// Helper function to ask the user whether or not they really wanted to ____
+/// (as specified by the `prompt`). As long as the response starts with the
+/// letter `y` (case insensitive), the reply is treated as affirmative.
 pub fn prompt_yesno<S>(prompt: S) -> Result<bool>
 where
     S: AsRef<str>,
@@ -656,14 +736,18 @@ where
     io::stdout().flush()?;
 
     match TermRead::read_line(&mut stdin)? {
-        Some(reply) if reply.starts_with('y') || reply.starts_with('Y') => Ok(true),
+        Some(reply) if reply.to_ascii_lowercase().starts_with('y') => Ok(true),
         _ => Ok(false),
     }
 }
 
-/// `recrypt_dir` handles the case where a subdir has a .gpg-id (which causes
-/// it to break out of the loop, thus ignoring any dir with a .gpg-id except for
-/// the root, PASSWORD_STORE_DIR)
+/// Helper function to recrypt a directory that handles the case where a
+/// subdirectory has a `.gpg-id` (which causes it to break out of the loop, thus
+/// ignoring any directory with a `.gpg-id` except for the root,
+/// [`PASSWORD_STORE_DIR`]). If no `keys` are specified, use the key(s) in the
+/// closest `.gpg-id`.
+///
+/// [`PASSWORD_STORE_DIR`]: ../consts/static.PASSWORD_STORE_DIR.html
 pub fn recrypt_dir<P>(path: P, keys: Option<&[String]>) -> Result<()>
 where
     P: AsRef<Path>,
@@ -698,9 +782,8 @@ where
             .unwrap_or(false);
 
         if show {
-            dbg!(&path);
             if file_name == Some(".gpg-id".as_ref()) {
-                if *path == *PASSWORD_STORE_DIR.join(".gpg-id") {
+                if path == *GPG_ID_FILE {
                     continue;
                 } else {
                     break;
@@ -718,6 +801,10 @@ where
     Ok(())
 }
 
+/// Recrypts an individual file at `path` with `keys` (or [`PASSWORD_STORE_KEY`]
+/// if no keys are specified).
+///
+/// [`PASSWORD_STORE_DIR`]: ../consts/static.PASSWORD_STORE_DIR.html
 pub fn recrypt_file<S>(path: S, keys: Option<&[String]>) -> Result<()>
 where
     S: AsRef<Path>,
@@ -742,11 +829,11 @@ where
     }
 
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
-    let keys = keys
+    let keys: Vec<gpgme::Key> = keys
         .iter()
         .map(|k| ctx.get_secret_key(k))
         .filter_map(|k| k.ok())
-        .collect::<Vec<_>>();
+        .collect();
 
     if keys.is_empty() {
         return Err(PassrsError::NoPrivateKeyFound.into());
@@ -769,25 +856,39 @@ where
     Ok(())
 }
 
+/// Helper function to find the `.gpg-id` closest to the specified path.
 pub fn get_closest_gpg_id<P>(path: P) -> Result<PathBuf>
 where
     P: AsRef<Path>,
 {
     let path = path.as_ref();
     let path = if path.is_file() {
-        path.parent().unwrap()
+        path.parent()
+            .with_context(|| "file's parent doesn't exist")?
     } else {
         path
     };
 
     if path == *PASSWORD_STORE_DIR {
-        return Ok((*GPG_ID_FILE).clone());
+        return Ok(GPG_ID_FILE.clone());
     }
 
     match self::find_gpg_id(&path) {
         Ok(gpgid) => Ok(gpgid),
-        Err(_) => self::get_closest_gpg_id(path.parent().unwrap()),
+        Err(_) => self::get_closest_gpg_id(
+            path.parent()
+                .with_context(|| "path's parent doesn't exist")?,
+        ),
     }
+}
+
+/// Copies `source` to `dest` recursively.
+pub fn copy<P, Q>(source: &P, dest: &Q) -> Result<()>
+where
+    P: AsRef<Path>,
+    Q: AsRef<Path>,
+{
+    self::copy_impl(source, dest, None)
 }
 
 // https://github.com/mdunsmuir/copy_dir/blob/071bab19cd716825375e70644c080c36a58863a1/src/lib.rs#L118
@@ -811,7 +912,7 @@ where
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
-pub fn copy<P, Q>(source: &P, dest: &Q, mut root: Option<(u64, u64)>) -> Result<()>
+fn copy_impl<P, Q>(source: &P, dest: &Q, mut root: Option<(u64, u64)>) -> Result<()>
 where
     P: AsRef<Path>,
     Q: AsRef<Path>,
@@ -833,8 +934,10 @@ where
 
         fs::copy(source, dest)?;
     } else if meta.is_dir() {
-        if root.is_some() && root.unwrap() == id {
-            return Err(PassrsError::SourceIsDestination.into());
+        if let Some(root) = root {
+            if root == id {
+                return Err(PassrsError::SourceIsDestination.into());
+            }
         }
 
         fs::create_dir_all(&dest)?;
@@ -848,7 +951,7 @@ where
             let name = entry
                 .file_name()
                 .with_context(|| "Entry did not contain valid filename")?;
-            self::copy(&entry, &dest.join(name), root)?;
+            self::copy_impl(&entry, &dest.join(name), root)?;
         }
 
         fs::set_permissions(dest, meta.permissions())?;

@@ -1,19 +1,24 @@
+//! [structopt]-powered command line interface
+//!
+//! # cli
+//!
+//! [structopt]: https://docs.rs/structopt
+
 use anyhow::Result;
-use structopt::clap;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-use super::subcmds::{cp, edit, find, generate, git, grep, init, insert, ls, mv, rm, show, unclip};
 use crate::consts::VERSION;
+use crate::subcmds::{cp, edit, find, generate, git, grep, init, insert, ls, mv, rm, show, unclip};
 use crate::util;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
+    name = "passrs",
     set_term_width(80),
-    settings = &[AppSettings::ArgsNegateSubcommands,
-                 AppSettings::DeriveDisplayOrder,
-                 AppSettings::VersionlessSubcommands],
-    version = &*VERSION.as_str())]
+    setting = AppSettings::DeriveDisplayOrder,
+    version = &*VERSION.as_str()
+)]
 struct Pass {
     #[structopt(subcommand)]
     subcmd: Option<PassSubcmd>,
@@ -21,34 +26,39 @@ struct Pass {
 
 #[derive(Debug, StructOpt)]
 #[structopt(no_version)]
-enum PassSubcmd {
-    /// Initialize new password store and use the provided gpg-id for
-    /// encryption.
+/// A crabby rewrite of `pass`, the standard unix password manager
+pub(crate) enum PassSubcmd {
+    /// Initialize a new store or substore.
     Init {
-        /// The gpg-id(s) to encrypt the store with.
+        /// The gpg-id(s) to encrypt the store with. If no keys are specified,
+        /// PASSWORD_STORE_KEY will be used.
         gpg_ids: Vec<String>,
         #[structopt(long, short = "p")]
         /// The specified gpg-id(s) is assigned to the specified subfolder.
         path: Option<String>,
     },
-    #[structopt(alias = "list")]
-    /// List secrets.
-    Ls { subfolder: Option<String> },
+    /// List all secrets.
+    Ls {
+        /// The subfolder to list.
+        subfolder: Option<String>,
+    },
     /// List secrets that match secret-name.
     Find {
         #[structopt(required = true)]
+        /// The secret to match.
         secret_name: String,
     },
     /// Show existing secret.
     Show {
         #[structopt(required = true)]
+        /// The secret to show.
         secret_name: String,
         #[structopt(long, short = "c")]
         #[allow(clippy::option_option)]
         /// Optionally, put the secret on the clipboard. If a line number is
         /// specified, that line (1-based) will be copied. Otherwise, the first
-        /// line of the file will be copied.. If put on the clipboard, the
-        /// secret will be cleared in PASSWORD_STORE_CLIP_TIME in seconds, or 45
+        /// line of the file will be copied. If put on the clipboard, the secret
+        /// will be cleared in PASSWORD_STORE_CLIP_TIME in seconds, or 45
         /// seconds if unspecified.
         /// NOTE: This flag must be the final argument.
         // Some(Some(usize)) => contents of line at usize.wrapping_sub(1)
@@ -56,14 +66,16 @@ enum PassSubcmd {
         // None => don't clip
         clip: Option<Option<usize>>,
     },
-    /// Search for secret files that contain search-string when decrypted.
+    /// Search for pattern in secrets.
     Grep {
         #[structopt(required = true)]
+        /// The string to grep for.
         search_string: String,
     },
-    /// Insert new secret.
+    /// Insert a new secret.
     Insert {
         #[structopt(required = true)]
+        /// The secret to insert into.
         secret_name: String,
         #[structopt(long, short = "e", conflicts_with = "multiline")]
         /// Echo the secret back to the console during entry.
@@ -75,14 +87,16 @@ enum PassSubcmd {
         /// Enable multiline mode.
         multiline: bool,
     },
-    /// Insert a new secret or edit an existing secret using $EDITOR.
+    /// Insert a new secret or edit an existing one using $EDITOR.
     Edit {
         #[structopt(required = true)]
+        /// The secret to edit.
         secret_name: String,
     },
-    /// Generate a new secret of pass-length, or 24 if unspecified.
+    /// Generate a new secret.
     Generate {
         #[structopt(required = true)]
+        /// The secret to generate for.
         secret_name: String,
         #[structopt(long, short = "c")]
         /// Optionally, put the secret on the clipboard. If put on the
@@ -98,13 +112,13 @@ enum PassSubcmd {
         #[structopt(long, short = "n")]
         /// Disable special symbols.
         no_symbols: bool,
-        /// The length of the secret.
+        /// The length of the secret, which defaults to 24 if not specified.
         length: Option<usize>,
     },
-    #[structopt(alias = "remove")]
     /// Remove existing secret or directory.
     Rm {
         #[structopt(required = true)]
+        /// The secret to remove.
         secret_name: String,
         #[structopt(long, short = "f")]
         /// Delete forcefully.
@@ -113,35 +127,38 @@ enum PassSubcmd {
         /// Delete recursively.
         recursive: bool,
     },
-    #[structopt(alias = "move")]
-    /// Rename/move old-path to new-path.
+    /// Move old-path to new-path.
     Mv {
         #[structopt(required = true)]
+        /// The path to move from.
         old_path: String,
         #[structopt(required = true)]
+        /// The path to move to.
         new_path: String,
         #[structopt(long, short = "f")]
         /// Move forcefully.
         force: bool,
     },
-    #[structopt(alias = "copy")]
     /// Copy old-path to new-path.
     Cp {
         #[structopt(required = true)]
+        /// The path to copy from.
         old_path: String,
         #[structopt(required = true)]
+        /// The path to copy to.
         new_path: String,
         #[structopt(long, short = "f")]
         /// Copy forcefully.
         force: bool,
     },
-    // FIXME: waiting on https://github.com/TeXitoi/structopt/pull/314
     #[structopt(settings = &[AppSettings::TrailingVarArg, AppSettings::AllowLeadingHyphen])]
-    /// Execute a git command specified by git-command-args inside the password
-    /// store.
-    Git { git_command_args: Vec<String> },
+    /// Execute a git command inside the password store.
+    Git {
+        /// Arguments to be passed to the git binary
+        git_command_args: Vec<String>,
+    },
     #[cfg(feature = "otp")]
-    /// Manage OTP tokens
+    /// Manage TOTP secrets
     Otp(Otp),
     #[structopt(setting = AppSettings::Hidden)]
     /// Clipboard daemon functionality.
@@ -153,23 +170,17 @@ enum PassSubcmd {
         /// Clear clipboard even if checksum mismatches
         force: bool,
     },
-    /// Prints completion information to stdout for the specified shell.
-    Complete {
-        #[structopt(required = true)]
-        /// One of `bash`, `fish`, `zsh`, `powershell`, or `elvish`
-        /// (case-insensitive)
-        shell: clap::Shell,
-    },
 }
 
 /// For managing one-time-password (OTP) tokens with passrs
 #[cfg(feature = "otp")]
 #[derive(Debug, StructOpt)]
-#[structopt(no_version)]
-enum Otp {
-    /// Generate and print an OTP code from the secret key in pass-name.
+#[structopt(no_version, setting = AppSettings::DeriveDisplayOrder)]
+pub(crate) enum Otp {
+    /// Generate and print a TOTP code from the key in secret-name.
     Code {
         #[structopt(required = true)]
+        /// The secret to generate the code from.
         secret_name: String,
         #[structopt(long, short = "c")]
         /// Optionally, put the generated code on the clipboard. If put on the
@@ -177,9 +188,10 @@ enum Otp {
         /// seconds, or 45 seconds if unspecified.
         clip: bool,
     },
-    /// Insert OTP secret to pass-name.
+    /// Insert TOTP secret to secret-name.
     Insert {
         #[structopt(required = true)]
+        /// The secret to insert into.
         secret_name: String,
         #[structopt(long, short = "e")]
         /// Echo the secret back to the console during entry.
@@ -188,49 +200,51 @@ enum Otp {
         /// Overwriting existing secret forcefully.
         force: bool,
         #[structopt(long, short = "g")]
-        /// Generate an OTP code from the newly-inserted secret.
+        /// Generate a TOTP code from the newly-inserted secret.
         generate: bool,
         #[structopt(long, short = "s")]
-        /// Create an OTP URI from the provided secret. Assumes SHA1 algorithm,
+        /// Create a TOTP URI from the provided secret. Assumes SHA1 algorithm,
         /// 30-second period, and 6 digits.
         from_secret: bool,
         #[structopt(long, requires = "from-secret")]
         /// One of SHA1, SHA256, or SHA512.
         algorithm: Option<String>,
         #[structopt(long, requires = "from-secret")]
-        /// How often the OTP refreshes.
+        /// How often the TOTP refreshes.
         period: Option<u32>,
         #[structopt(long, requires = "from-secret")]
-        /// The length of the generated OTP code.
+        /// The length of the generated TOTP code.
         digits: Option<usize>,
     },
-    /// Append an OTP secret to pass-name.
+    /// Append a TOTP secret to secret-name.
     Append {
         #[structopt(required = true)]
+        /// The secret to append to.
         secret_name: String,
         #[structopt(long, short = "e")]
         /// Echo the secret back to the console during entry.
         echo: bool,
         #[structopt(long, short = "s")]
-        /// Create an OTP URI from the provided secret. Assumes SHA1 algorithm,
+        /// Create a TOTP URI from the provided secret. Assumes SHA1 algorithm,
         /// 30-second period, and 6 digits.
         from_secret: bool,
         #[structopt(long, short = "g")]
-        /// Generate an OTP code from the newly-appended secret.
+        /// Generate a TOTP code from the newly-appended secret.
         generate: bool,
         #[structopt(long, requires = "from-secret")]
         /// One of SHA1, SHA256, or SHA512.
         algorithm: Option<String>,
         #[structopt(long, requires = "from-secret")]
-        /// How often the OTP refreshes.
+        /// How often the TOTP refreshes.
         period: Option<u32>,
         #[structopt(long, requires = "from-secret")]
-        /// The length of the OTP code.
+        /// The length of the TOTP code.
         digits: Option<usize>,
     },
-    /// Print the key URI stored in pass-name.
+    /// Print the key URI stored in secret-name.
     Uri {
         #[structopt(required = true)]
+        /// The secret that contains a URI to print.
         secret_name: String,
         #[structopt(long, short = "c", conflicts_with = "qrcode")]
         /// Copy the URI to the clipboard.
@@ -239,15 +253,17 @@ enum Otp {
         /// Generate a QR code to stdout.
         qrcode: bool,
     },
-    /// Test a URI string for validity according to the Key Uri Format.
+    /// Test a URI for validity according to the Key Uri Format.
     Validate {
         #[structopt(required = true)]
+        /// The URI to test.
         uri: String,
     },
 }
 
 #[derive(Debug, Default, Clone, Copy)]
-pub struct Flags {
+/// A `struct` holding common boolean flags.
+pub(crate) struct Flags {
     pub clip: bool,
     pub echo: bool,
     pub force: bool,
@@ -363,17 +379,14 @@ pub fn opt() -> Result<()> {
                 util::verify_store_exists()?;
                 unclip::unclip(timeout, force)?;
             }
-            PassSubcmd::Complete { shell } => {
-                Pass::clap().gen_completions_to(clap::crate_name!(), shell, &mut std::io::stdout());
-            }
             #[cfg(feature = "otp")]
             PassSubcmd::Otp(otp) => {
-                use super::subcmds::otp::{append, code, insert, uri, validate};
+                use crate::subcmds::otp::{append, code, insert, uri, validate};
 
                 match otp {
                     Otp::Code { secret_name, clip } => {
                         util::verify_store_exists()?;
-                        code::code(clip, secret_name)?;
+                        code::code(secret_name, clip)?;
                     }
                     Otp::Insert {
                         secret_name,
@@ -420,8 +433,14 @@ pub fn opt() -> Result<()> {
                         clip,
                         qrcode,
                     } => {
+                        let flags = Flags {
+                            clip,
+                            qrcode,
+                            ..Default::default()
+                        };
+
                         util::verify_store_exists()?;
-                        uri::uri(secret_name, clip, qrcode)?;
+                        uri::uri(secret_name, flags)?;
                     }
                     Otp::Validate { uri } => {
                         util::verify_store_exists()?;

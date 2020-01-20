@@ -6,11 +6,14 @@ use crate::consts::STORE_LEN;
 use crate::ui;
 use crate::ui::UiResult;
 use crate::util;
+use crate::Flags;
 use crate::PassrsError;
 
 use super::validate;
 
-pub fn uri(secret_name: String, clip: bool, qr: bool) -> Result<()> {
+pub(crate) fn uri(secret_name: String, flags: Flags) -> Result<()> {
+    let clip = flags.clip;
+    let qr = flags.qrcode;
     let file = ui::display_matches_for_target(&secret_name)?;
 
     if let UiResult::Success(file) = file {
@@ -31,11 +34,6 @@ pub fn uri(secret_name: String, clip: bool, qr: bool) -> Result<()> {
                     println!();
                     for row in rows.iter() {
                         for pixel in row.iter() {
-                            let ch = pixel.ch;
-                            let fg = pixel.fg;
-                            let bg = pixel.bg;
-
-                            let pixel = format!("\x1b[{};{}m{}\x1b[0;0m", fg, bg, ch);
                             print!("{}", pixel);
                         }
                         println!();
@@ -68,6 +66,12 @@ impl Default for Cell {
             fg: 30,
             bg: 47,
         }
+    }
+}
+
+impl std::fmt::Display for Cell {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "\x1b[{};{}m{}\x1b[0;0m", self.fg, self.bg, self.ch)
     }
 }
 

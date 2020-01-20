@@ -1,3 +1,12 @@
+//! Clipboard helpers
+//!
+//! # clipboard
+//!
+//! This module houses the clipboard functionality, utilizing platform-specific
+//! binaries to interact with the clipboard.
+//!
+//! Currently, only Wayland and X11 are supported.
+
 use std::env;
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -11,6 +20,9 @@ use ring::digest;
 use crate::consts::{PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_X_SELECTION};
 use crate::PassrsError;
 
+/// Copies the `contents` to the clipboard, optionally `force`fully.
+///
+/// On Wayland, this uses `wl-copy`, and on X11, `xclip`.
 pub fn clip<S>(contents: S, force: bool) -> Result<()>
 where
     S: AsRef<[u8]>,
@@ -42,7 +54,7 @@ where
     let hash = HEXLOWER.encode(digest::digest(&digest::SHA256, &contents).as_ref());
     let args = [
         "unclip",
-        &PASSWORD_STORE_CLIP_TIME,
+        &*PASSWORD_STORE_CLIP_TIME,
         if force { "--force" } else { "--" },
     ];
 
@@ -57,6 +69,9 @@ where
     Ok(())
 }
 
+/// Retrieves the contents of the clipboard as a `Vec<u8>`.
+///
+/// On Wayland, this uses `wl-paste`, and on X11, `xclip`.
 pub fn paste() -> Result<Vec<u8>> {
     let bytes = if env::var("WAYLAND_DISPLAY").is_ok() {
         Command::new("wl-paste")
@@ -77,6 +92,7 @@ pub fn paste() -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
+/// Clears the contents of the clipboard.
 pub fn clear() -> Result<()> {
     if env::var("WAYLAND_DISPLAY").is_ok() {
         Command::new("wl-copy").arg("--clear").spawn()?;

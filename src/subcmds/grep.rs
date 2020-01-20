@@ -12,7 +12,7 @@ use crate::consts::{PASSWORD_STORE_DIR, STORE_LEN};
 use crate::util;
 
 // Takes ~40 seconds to search the entirety of my ~400 file store
-pub fn grep(search: String) -> Result<()> {
+pub(crate) fn grep(search: String) -> Result<()> {
     let mut searcher = SearcherBuilder::new()
         .binary_detection(BinaryDetection::quit(b'\x00'))
         .build();

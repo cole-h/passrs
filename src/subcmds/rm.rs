@@ -1,5 +1,6 @@
 use std::fs;
 use std::os::unix::fs::OpenOptionsExt;
+use std::path::PathBuf;
 
 use anyhow::Result;
 
@@ -8,7 +9,7 @@ use crate::util;
 use crate::Flags;
 use crate::PassrsError;
 
-pub fn rm(secret_name: String, flags: Flags) -> Result<()> {
+pub(crate) fn rm(secret_name: String, flags: Flags) -> Result<()> {
     let recursive = flags.recursive;
     let force = flags.force;
     let path = util::canonicalize_path(&secret_name)?;
@@ -34,13 +35,19 @@ pub fn rm(secret_name: String, flags: Flags) -> Result<()> {
             if meta.is_dir() {
                 if recursive {
                     fs::remove_dir_all(&path)?;
-                    util::commit(format!("Remove folder {} from store", secret_name))?;
+                    util::commit(
+                        None::<&[PathBuf]>,
+                        format!("Remove folder {} from store", secret_name),
+                    )?;
                 } else {
                     return Err(PassrsError::PathIsDir(path.display().to_string()).into());
                 }
             } else {
                 fs::remove_file(path)?;
-                util::commit(format!("Remove entry {} from store", secret_name))?;
+                util::commit(
+                    None::<&[PathBuf]>,
+                    format!("Remove entry {} from store", secret_name),
+                )?;
             }
         }
         Err(_) => {

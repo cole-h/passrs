@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use passrs::consts;
-use passrs::util;
+use pass_rs::consts;
+use pass_rs::util;
 
 #[test]
 fn canonicalize_path() {
@@ -49,15 +49,15 @@ fn check_sneaky_paths() {
 }
 
 #[test]
-fn find_target_single() {
-    assert!(util::find_target_single(".").unwrap().len() > 0);
-    assert!(util::find_target_single("a").unwrap().len() == 1);
-    assert!(util::find_target_single("z").is_err());
+fn find_matches() {
+    assert!(util::find_matches(".").unwrap().len() > 0);
+    assert!(util::find_matches("a").unwrap().len() == 1);
+    assert!(util::find_matches("z").is_err());
 }
 
 #[test]
 fn decrypt_file_into_bytes() {
-    let file = util::canonicalize_path("a").unwrap();
+    let file = "./tests/test_repo/a.gpg";
     let contents = util::decrypt_file_into_bytes(&file).unwrap();
 
     assert_eq!(contents, "eHy;CDpa&4]Sf1g*rx1Zlrig".as_bytes());
@@ -65,7 +65,7 @@ fn decrypt_file_into_bytes() {
 
 #[test]
 fn decrypt_file_into_strings() {
-    let file = util::canonicalize_path("f").unwrap();
+    let file = "./tests/test_repo/f.gpg";
     let contents = util::decrypt_file_into_strings(&file).unwrap();
     let mut iter = contents.iter();
 

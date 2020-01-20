@@ -8,11 +8,11 @@ use crate::ui;
 use crate::ui::UiResult;
 use crate::util;
 
-#[allow(clippy::option_option)]
-pub fn show(secret_name: String, clip: Option<Option<usize>>) -> Result<()> {
-    let file = ui::display_matches_for_target(&secret_name)?;
+use super::edit;
 
-    match file {
+#[allow(clippy::option_option)]
+pub(crate) fn show(secret_name: String, clip: Option<Option<usize>>) -> Result<()> {
+    match ui::display_matches_for_target(&secret_name)? {
         UiResult::Success(file) => {
             let password = util::decrypt_file_into_strings(&file)?;
 
@@ -57,7 +57,7 @@ pub fn show(secret_name: String, clip: Option<Option<usize>>) -> Result<()> {
             );
         }
         UiResult::SpawnEditor(file) => {
-            crate::subcmds::edit::edit(file)?;
+            edit::edit(&file[..file.len() - 4])?;
         }
         _ => {}
     }

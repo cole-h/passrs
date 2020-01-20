@@ -9,7 +9,7 @@ use crate::util::EditMode;
 use crate::Flags;
 use crate::PassrsError;
 
-pub fn insert(secret_name: String, flags: Flags) -> Result<()> {
+pub(crate) fn insert(secret_name: String, flags: Flags) -> Result<()> {
     let echo = flags.echo;
     let multiline = flags.multiline;
     let force = flags.force;
@@ -31,12 +31,15 @@ pub fn insert(secret_name: String, flags: Flags) -> Result<()> {
         }
     }
 
-    let secret = util::prompt_for_secret(echo, multiline, &secret_name)?;
+    let secret = util::prompt_for_secret(&secret_name, echo, multiline)?;
 
     // if we prompted the user for a password and got one
     if let Some(secret) = secret {
-        util::encrypt_bytes_into_file(secret.as_bytes(), path, EditMode::Clobber)?;
-        util::commit(format!("Add given secret for {} to store", secret_name))?;
+        util::encrypt_bytes_into_file(secret.as_bytes(), &path, EditMode::Clobber)?;
+        util::commit(
+            Some([&path]),
+            format!("Add given secret for {} to store", secret_name),
+        )?;
     }
 
     Ok(())

@@ -1,7 +1,15 @@
+//! One-Time Password generation
+//!
+//! # otp
+//!
+//! This module houses the implementation of RFC6238 and RFC4226 for use in
+//! generating Time-based One-Time Passwords.
+//!
+//! Requires the `otp` feature to be enabled (enabled by default).
+
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use data_encoding::BASE32_NOPAD;
-use data_encoding::HEXLOWER_PERMISSIVE;
 use ring::hmac;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -39,28 +47,6 @@ macro_rules! otp_builder {
             self
         }
 
-        pub fn ascii_secret<S>(&mut self, secret: S) -> &mut $t
-        where
-            S: AsRef<[u8]>,
-        {
-            let secret = secret.as_ref();
-
-            self.secret(secret)
-        }
-
-        pub fn hex_secret<S>(&mut self, secret: S) -> &mut $t
-        where
-            S: AsRef<[u8]>,
-        {
-            let secret = secret.as_ref();
-            let hex = HEXLOWER_PERMISSIVE
-                .decode(secret)
-                .expect("Secret was invalid hex");
-            self.key = hex;
-
-            self
-        }
-
         pub fn output_len(&mut self, output_len: usize) -> &mut $t {
             self.output_len = output_len;
 
@@ -83,18 +69,11 @@ pub struct HOTPBuilder {
     algo: HashAlgorithm,
 }
 
-#[allow(dead_code)]
 impl HOTPBuilder {
     otp_builder!(HOTPBuilder);
 
     pub fn counter(&mut self, counter: u64) -> &mut HOTPBuilder {
         self.counter = counter;
-
-        self
-    }
-
-    pub fn output_length(&mut self, len: usize) -> &mut HOTPBuilder {
-        self.output_len = len;
 
         self
     }
@@ -174,7 +153,6 @@ pub struct TOTPBuilder {
     period: u64,
 }
 
-#[allow(dead_code)]
 impl TOTPBuilder {
     otp_builder!(TOTPBuilder);
 
@@ -190,12 +168,6 @@ impl TOTPBuilder {
 
     pub fn counter(&mut self, counter: u64) -> &mut TOTPBuilder {
         self.counter = counter;
-
-        self
-    }
-
-    pub fn output_length(&mut self, len: usize) -> &mut TOTPBuilder {
-        self.output_len = len;
 
         self
     }
@@ -246,7 +218,7 @@ impl TOTP {
         let hotp = HOTPBuilder::default()
             .secret(self.key.clone())
             .counter(counter)
-            .output_length(self.output_len)
+            .output_len(self.output_len)
             .algorithm(self.algo)
             .build();
 

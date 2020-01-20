@@ -15,7 +15,12 @@ use crate::util;
 use crate::util::EditMode;
 use crate::PassrsError;
 
-pub fn edit(secret_name: String) -> Result<()> {
+pub(crate) fn edit<S>(secret_name: S) -> Result<()>
+where
+    S: AsRef<str>,
+{
+    let secret_name = secret_name.as_ref();
+
     // 1. Decrypt file to /dev/shm/{exe}.{20 rand alnum chars}/{5 rand
     // alnum}-path-components-except-for-root.txt
     let temp_path = self::temp_file(&secret_name)?;
@@ -52,7 +57,6 @@ pub fn edit(secret_name: String) -> Result<()> {
 
     // 4. Read new contents of the tempfile and calculate a hash of the contents
     let mut new_contents = Vec::new();
-
     let mut temp_file = fs::OpenOptions::new()
         .mode(0o666 - (0o666 & *PASSWORD_STORE_UMASK))
         .read(true)
@@ -88,7 +92,10 @@ pub fn edit(secret_name: String) -> Result<()> {
 
     // 6. Encrypt contents of temp_file to file in store
     util::encrypt_bytes_into_file(&new_contents, &file, EditMode::Clobber)?;
-    util::commit(format!("Edit secret for {} using {}", secret_name, *EDITOR))?;
+    util::commit(
+        Some([&file]),
+        format!("Edit secret for {} using {}", secret_name, *EDITOR),
+    )?;
 
     // 7. delete temporary file and directory
     fs::remove_file(&temp_path)?;

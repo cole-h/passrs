@@ -14,7 +14,7 @@ use crate::PassrsError;
 
 use super::validate;
 
-pub fn code(clip: bool, secret_name: String) -> Result<()> {
+pub(crate) fn code(secret_name: String, clip: bool) -> Result<()> {
     let file = ui::display_matches_for_target(&secret_name)?;
 
     if let UiResult::Success(file) = file {
@@ -39,6 +39,7 @@ pub fn code(clip: bool, secret_name: String) -> Result<()> {
                     );
                 } else {
                     let period = validate::get_period(&otp)?;
+
                     self::display_code(&code, period)?;
                 }
 
@@ -52,7 +53,7 @@ pub fn code(clip: bool, secret_name: String) -> Result<()> {
     }
 }
 
-pub fn generate_totp<S>(otp: S) -> Result<String>
+pub(crate) fn generate_totp<S>(otp: S) -> Result<String>
 where
     S: AsRef<str>,
 {
@@ -65,7 +66,7 @@ where
         .base32_secret(&secret)
         .period(period)
         .algorithm(algorithm)
-        .output_length(digits)
+        .output_len(digits)
         .build();
 
     let code = auth.generate();
@@ -73,7 +74,7 @@ where
     Ok(code)
 }
 
-pub fn display_code<S>(code: S, period: u64) -> Result<()>
+pub(crate) fn display_code<S>(code: S, period: u64) -> Result<()>
 where
     S: AsRef<str>,
 {

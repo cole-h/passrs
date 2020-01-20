@@ -6,8 +6,8 @@ use crate::consts::STORE_LEN;
 use crate::util;
 use crate::PassrsError;
 
-pub fn find(name: String) -> Result<()> {
-    let matches = util::find_target_single(&name)?;
+pub(crate) fn find(name: String) -> Result<()> {
+    let matches = util::find_matches(&name)?;
 
     // FIXME: For now, just following `gopass`s lead: straight-up print the
     // matches to stdout.

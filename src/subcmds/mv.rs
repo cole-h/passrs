@@ -7,20 +7,22 @@ use crate::consts::PASSWORD_STORE_UMASK;
 use crate::util;
 use crate::PassrsError;
 
-pub fn mv(source: String, dest: String, force: bool) -> Result<()> {
+pub(crate) fn mv(source: String, dest: String, force: bool) -> Result<()> {
     let source_path = util::canonicalize_path(&source)?;
     let is_file = match fs::metadata(&source_path) {
         Ok(meta) => meta.is_file(),
         Err(_) => false,
     };
+    let mut dest_is_dir = false;
     let dest_path = if is_file {
         if dest.ends_with('/') {
+            dest_is_dir = true;
             let name = source.rfind('/').unwrap_or(0);
             let oldname = &source[name..];
 
-            util::exact_path(&format!("{}{}.gpg", dest, oldname))?
+            util::exact_path([&dest, oldname, ".gpg"].concat())?
         } else {
-            util::exact_path(&format!("{}.gpg", dest))?
+            util::exact_path([&dest, ".gpg"].concat())?
         }
     } else {
         util::exact_path(&dest)?
@@ -45,8 +47,18 @@ pub fn mv(source: String, dest: String, force: bool) -> Result<()> {
             }
         }
 
-        util::copy(&source_path, &dest_path, None)?;
-        util::remove_dirs_to_file(&source_path)?;
+        let commit_message = if dest_is_dir {
+            let name = source.rfind('/').unwrap_or(0);
+            let oldname = &source[name..];
+            let mut dest = dest;
+
+            dest.pop();
+            format!("Rename {} to {}{}", source, dest, oldname)
+        } else {
+            format!("Rename {} to {}", source, dest)
+        };
+
+        util::copy(&source_path, &dest_path)?;
 
         if util::get_closest_gpg_id(&dest_path)? != util::get_closest_gpg_id(&source_path)? {
             if dest_path.is_file() {
@@ -56,7 +68,8 @@ pub fn mv(source: String, dest: String, force: bool) -> Result<()> {
             }
         }
 
-        util::commit(format!("Rename {} to {}", source, dest))?;
+        util::remove_dirs_to_file(&source_path)?;
+        util::commit(Some([&source_path, &dest_path]), commit_message)?;
     } else {
         if !util::path_exists(&source_path)? {
             return Err(PassrsError::PathDoesntExist(source).into());
@@ -72,10 +85,17 @@ pub fn mv(source: String, dest: String, force: bool) -> Result<()> {
             }
         }
 
-        util::copy(&source_path, &dest_path, None)?;
+        util::copy(&source_path, &dest_path)?;
+
+        if util::get_closest_gpg_id(&dest_path)? != util::get_closest_gpg_id(&source_path)? {
+            util::recrypt_dir(&dest_path, None)?;
+        }
+
         fs::remove_dir_all(&source_path)?;
-        util::recrypt_dir(&dest_path, None)?;
-        util::commit(format!("Rename {} to {}", source, dest))?;
+        util::commit(
+            Some([&source_path, &dest_path]),
+            format!("Rename {} to {}", source, dest),
+        )?;
     }
 
     Ok(())

@@ -13,11 +13,11 @@ use crate::clipboard;
 use crate::consts::PASSRS_UNCLIP_HASH;
 use crate::PassrsError;
 
-pub fn unclip(timeout: u64, force: bool) -> Result<()> {
-    if *PASSRS_UNCLIP_HASH == "" {
+pub(crate) fn unclip(timeout: u64, force: bool) -> Result<()> {
+    if PASSRS_UNCLIP_HASH.is_empty() {
         eprintln!(
-            "Unclip is spawned in the background when you copy to your clipboard. \
-             This should not be called by a user."
+            "Unclip is spawned in the background when you copy to your clipboard.\n\
+             You shouldn't call this yourself."
         );
         return Ok(());
     }

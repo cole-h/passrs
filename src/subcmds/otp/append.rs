@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Result;
 
 use crate::util;
@@ -7,7 +9,7 @@ use crate::Flags;
 use super::code;
 use super::validate;
 
-pub fn append(
+pub(crate) fn append(
     secret_name: String,
     algo: Option<String>,
     digits: Option<usize>,
@@ -20,7 +22,7 @@ pub fn append(
     let path = util::canonicalize_path(&secret_name)?;
 
     if from_secret {
-        let secret = util::prompt_for_secret(echo, false, &secret_name)?;
+        let secret = util::prompt_for_secret(&secret_name, echo, false)?;
 
         if let Some(secret) = secret {
             let mut secret = format!("otpauth://totp/{}?secret={}", secret_name, secret);
@@ -44,14 +46,18 @@ pub fn append(
             if generate {
                 let code = code::generate_totp(&secret)?;
                 let period = validate::get_period(&secret)?;
+
                 code::display_code(&code, period)?;
             }
 
             util::encrypt_bytes_into_file(secret.as_bytes(), path, EditMode::Append)?;
-            util::commit(format!("Append OTP secret for {}", secret_name))?;
+            util::commit(
+                None::<&[PathBuf]>,
+                format!("Append OTP secret for {}", secret_name),
+            )?;
         }
     } else {
-        let secret = util::prompt_for_secret(echo, false, &secret_name)?;
+        let secret = util::prompt_for_secret(&secret_name, echo, false)?;
 
         if let Some(secret) = secret {
             validate::validate(&secret)?;
@@ -59,11 +65,15 @@ pub fn append(
             if generate {
                 let code = code::generate_totp(&secret)?;
                 let period = validate::get_period(&secret)?;
+
                 code::display_code(&code, period)?;
             }
 
             util::encrypt_bytes_into_file(secret.as_bytes(), path, EditMode::Append)?;
-            util::commit(format!("Append OTP secret for {}", secret_name))?;
+            util::commit(
+                None::<&[PathBuf]>,
+                format!("Append OTP secret for {}", secret_name),
+            )?;
         }
     }
 

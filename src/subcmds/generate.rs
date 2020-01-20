@@ -16,7 +16,7 @@ use crate::util::EditMode;
 use crate::Flags;
 use crate::PassrsError;
 
-pub fn generate(secret_name: String, length: Option<usize>, flags: Flags) -> Result<()> {
+pub(crate) fn generate(secret_name: String, length: Option<usize>, flags: Flags) -> Result<()> {
     let clip = flags.clip;
     let force = flags.force;
     let in_place = flags.in_place;
@@ -74,7 +74,10 @@ pub fn generate(secret_name: String, length: Option<usize>, flags: Flags) -> Res
         let existing = existing.as_bytes();
 
         util::encrypt_bytes_into_file(existing, &path, EditMode::Clobber)?;
-        util::commit(format!("Replace generated secret for {}", secret_name))?;
+        util::commit(
+            Some([&path]),
+            format!("Replace generated secret for {}", secret_name),
+        )?;
 
         if !clip {
             println!(
@@ -89,7 +92,10 @@ pub fn generate(secret_name: String, length: Option<usize>, flags: Flags) -> Res
         }
     } else {
         util::encrypt_bytes_into_file(&secret_bytes, &path, EditMode::Clobber)?;
-        util::commit(format!("Save generated secret for {}", secret_name))?;
+        util::commit(
+            Some([&path]),
+            format!("Save generated secret for {}", secret_name),
+        )?;
 
         if !clip {
             println!(
