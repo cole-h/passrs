@@ -42,7 +42,9 @@ macro_rules! otp_builder {
         {
             let secret = secret.as_ref();
             let secret = secret.to_ascii_uppercase();
-            self.key = BASE32_NOPAD.decode(&secret).expect("Secret was not valid base32");
+            self.key = BASE32_NOPAD
+                .decode(&secret)
+                .expect("Secret was not valid base32");
 
             self
         }
@@ -58,7 +60,7 @@ macro_rules! otp_builder {
 
             self
         }
-    }
+    };
 }
 
 #[derive(Debug, Default)]

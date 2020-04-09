@@ -1,5 +1,6 @@
 use std::env;
 use std::io;
+use std::io::Write;
 use std::str;
 use std::thread;
 use std::time;
@@ -15,21 +16,29 @@ use crate::PassrsError;
 
 pub(crate) fn unclip(timeout: u64, force: bool) -> Result<()> {
     if PASSRS_UNCLIP_HASH.is_empty() {
-        eprintln!(
+        writeln!(
+            io::stderr(),
             "Unclip is spawned in the background when you copy to your clipboard.\n\
              You shouldn't call this yourself."
-        );
+        )?;
         return Ok(());
     }
 
-    let procs = self::get_procs()?
+    let procs = process::processes()?
         .into_iter()
+        .filter_map(|e| e.ok())
         .filter(|e| e.exe().unwrap_or_default() == env::current_exe().unwrap_or_default())
-        .filter(|e| e.pid as u32 != std::process::id());
+        .filter(|e| e.pid() as u32 != std::process::id());
 
     for proc in procs {
-        assert_eq!(proc.comm, "passrs");
-        proc.kill()?;
+        assert_ne!(proc.pid() as u32, std::process::id());
+        assert_eq!(proc.name()?, "passrs");
+
+        if let Ok(Some(cmdline)) = proc.cmdline() {
+            if cmdline.contains("unclip") {
+                proc.kill()?;
+            }
+        }
     }
 
     let password_bytes = clipboard::paste()?;
@@ -46,19 +55,4 @@ pub(crate) fn unclip(timeout: u64, force: bool) -> Result<()> {
     clipboard::clear()?;
 
     Ok(())
-}
-
-fn get_procs() -> Result<Vec<process::Process>> {
-    loop {
-        match process::all() {
-            Ok(procs) => return Ok(procs),
-            Err(why) => {
-                if why.kind() != io::ErrorKind::NotFound
-                    && why.kind() != io::ErrorKind::PermissionDenied
-                {
-                    return Err(why.into());
-                }
-            }
-        }
-    }
 }

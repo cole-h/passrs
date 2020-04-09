@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use pass_rs::consts;
-use pass_rs::util;
+use passrs::consts;
+use passrs::util;
 
 #[test]
 fn canonicalize_path() {

@@ -23,7 +23,7 @@ pub(crate) fn ls(path: Option<String>) -> Result<()> {
         if tree.leaves.is_empty() {
             return Ok(());
         } else {
-            println!("{}", tree);
+            tree.display_tree()?;
         }
 
         Ok(())

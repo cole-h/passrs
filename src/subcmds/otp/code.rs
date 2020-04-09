@@ -1,3 +1,5 @@
+use std::io;
+use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
@@ -17,39 +19,35 @@ use super::validate;
 pub(crate) fn code(secret_name: String, clip: bool) -> Result<()> {
     let file = ui::display_matches_for_target(&secret_name)?;
 
-    if let UiResult::Success(file) = file {
-        let lines = util::decrypt_file_into_strings(&file)?;
-        let file = file[*STORE_LEN..file.len() - 4].to_owned();
-        let mut ret = Err(PassrsError::NoUriFound(file.clone()).into());
+    match file {
+        UiResult::Success(file) => {
+            let lines = util::decrypt_file_into_strings(&file)?;
+            let file = file[*STORE_LEN..file.rfind(".gpg").unwrap()].to_owned();
 
-        for otp in lines {
-            if validate::validate(&otp).is_ok() {
-                ret = Ok(());
+            for otp in lines {
+                if validate::validate(&otp).is_ok() {
+                    if clip {
+                        let code = self::generate_totp(&otp)?;
 
-                let code = self::generate_totp(&otp)?;
+                        clipboard::clip(&code, false)?;
+                        writeln!(io::stdout(),
+                                 "Copied token for {yellow}{}{reset} to the clipboard, which will clear in {} seconds.",
+                                 &file,
+                                 *PASSWORD_STORE_CLIP_TIME,
+                                 yellow = color::Fg(color::Yellow),
+                                 reset = style::Reset,
+                        )?;
+                    } else {
+                        self::display_code(&otp)?;
+                    }
 
-                if clip {
-                    clipboard::clip(&code, false)?;
-                    println!(
-                        "Copied token for {yellow}{}{reset} to the clipboard, which will clear in {} seconds.",
-                        &file,
-                        *PASSWORD_STORE_CLIP_TIME,
-                        yellow = color::Fg(color::Yellow),
-                        reset = style::Reset,
-                    );
-                } else {
-                    let period = validate::get_period(&otp)?;
-
-                    self::display_code(&code, period)?;
+                    return Ok(());
                 }
-
-                break;
             }
-        }
 
-        ret
-    } else {
-        Err(PassrsError::NoMatchesFound(secret_name).into())
+            Err(PassrsError::NoUriFound(file).into())
+        }
+        _ => Err(PassrsError::NoMatchesFound(secret_name).into()),
     }
 }
 
@@ -74,43 +72,51 @@ where
     Ok(code)
 }
 
-pub(crate) fn display_code<S>(code: S, period: u64) -> Result<()>
+pub(crate) fn display_code<S>(otp: S) -> Result<()>
 where
     S: AsRef<str>,
 {
-    let code = code.as_ref();
+    let otp = otp.as_ref();
+    let code = self::generate_totp(&otp)?;
+    let period = validate::get_period(&otp)?;
     let time = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
     let duration = period - (time % period);
     let elapsed = (period - duration) as usize;
     let remaining = (duration % period) as usize;
 
-    if elapsed == 0 {
-        println!(
-            "{} lasts {}s      \
-             |{green}{bold}<{nobold}{:=<29}{reset}|",
-            code,
-            duration,
-            "",
-            green = color::Fg(color::Green),
-            bold = style::Bold,
-            nobold = style::NoBold,
-            reset = style::Reset
-        )
+    if termion::is_tty(&io::stdout()) {
+        if elapsed == 0 {
+            writeln!(
+                io::stdout(),
+                "{} lasts {}s      \
+                 |{green}{bold}<{nobold}{:=<29}{reset}|",
+                code,
+                duration,
+                "",
+                green = color::Fg(color::Green),
+                bold = style::Bold,
+                nobold = style::NoBold,
+                reset = style::Reset
+            )?
+        } else {
+            writeln!(
+                io::stdout(),
+                "{} lasts {}s      \
+                 |{red}{:-<elapsed$}{green}{bold}<{reset}{green}{:=<remaining$}{reset}|",
+                code,
+                duration,
+                "-",
+                "",
+                red = color::Fg(color::Red),
+                green = color::Fg(color::Green),
+                bold = style::Bold,
+                reset = style::Reset,
+                elapsed = elapsed + 1,
+                remaining = remaining - 1
+            )?;
+        }
     } else {
-        println!(
-            "{} lasts {}s      \
-             |{red}{:-<elapsed$}{green}{bold}<{reset}{green}{:=<remaining$}{reset}|",
-            code,
-            duration,
-            "-",
-            "",
-            red = color::Fg(color::Red),
-            green = color::Fg(color::Green),
-            bold = style::Bold,
-            reset = style::Reset,
-            elapsed = elapsed + 1,
-            remaining = remaining - 1
-        );
+        write!(io::stdout(), "{}", code)?;
     }
 
     Ok(())

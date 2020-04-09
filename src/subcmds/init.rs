@@ -1,4 +1,5 @@
 use std::fs;
+use std::io;
 use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
@@ -25,10 +26,12 @@ pub(crate) fn init(keys: Vec<String>, path: Option<String>) -> Result<()> {
 
     if !util::path_exists(&store)? || util::verify_store_exists().is_err() {
         if let Some(path) = path {
-            eprintln!(
+            writeln!(
+                io::stderr(),
                 "Ignoring path {}; creating store at {}",
-                path, *STORE_STRING
-            );
+                path,
+                *STORE_STRING
+            )?;
         }
         if keys.is_empty() {
             return Err(PassrsError::StoreDoesntExist.into());
@@ -39,7 +42,7 @@ pub(crate) fn init(keys: Vec<String>, path: Option<String>) -> Result<()> {
         let list = &keys.join(", ");
         let keys = if keys.len() > 1 { &list } else { &keys[0] };
 
-        println!("Password store initialized for {}", keys);
+        writeln!(io::stdout(), "Password store initialized for {}", keys)?;
     } else if keys.is_empty() {
         // Although pass allows the deinitialization of a store, we don't
         //   https://git.zx2c4.com/password-store/commit/src/password-store.sh?id=0f0483f789e4819b029cf2f9d8168a6172da4d92
@@ -53,7 +56,12 @@ pub(crate) fn init(keys: Vec<String>, path: Option<String>) -> Result<()> {
             let list = &keys.join(", ");
             let keys = if keys.len() > 1 { &list } else { &keys[0] };
 
-            println!("Password store initialized for {} ({})", &keys, &path);
+            writeln!(
+                io::stdout(),
+                "Password store initialized for {} ({})",
+                &keys,
+                &path
+            )?;
         } else {
             util::recrypt_dir(&substore_path, Some(keys))?;
 

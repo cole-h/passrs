@@ -115,7 +115,7 @@ where
             "sha1" => HashAlgorithm::Sha1,
             "sha256" => HashAlgorithm::Sha256,
             "sha512" => HashAlgorithm::Sha512,
-            algo => return Err(PassrsError::InvalidHashAlgorithm(algo.to_owned()).into()),
+            algo => return Err(PassrsError::InvalidHashAlgorithm(algo.to_string()).into()),
         },
         None => HashAlgorithm::Sha1,
     };

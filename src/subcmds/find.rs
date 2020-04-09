@@ -1,3 +1,6 @@
+use std::io;
+use std::io::Write;
+
 use anyhow::{Context, Result};
 use termion::color;
 use termion::style;
@@ -20,7 +23,7 @@ pub(crate) fn find(name: String) -> Result<()> {
                 .with_context(|| "Path did not contain a folder")?
                 + 1;
             let pre = &matched[*STORE_LEN..separator];
-            let file = &matched[separator..matched.len() - 4];
+            let file = &matched[separator..matched.rfind(".gpg").unwrap()];
             let formatted_path = format!(
                 "{blue}{bold}{}{nobold}{}{reset}",
                 pre,
@@ -31,7 +34,7 @@ pub(crate) fn find(name: String) -> Result<()> {
                 reset = style::Reset,
             );
 
-            println!("{}", formatted_path);
+            writeln!(io::stdout(), "{}", formatted_path)?;
         }
     } else {
         return Err(PassrsError::NoMatchesFound(name).into());

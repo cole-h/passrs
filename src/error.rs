@@ -62,4 +62,6 @@ pub(crate) enum PassrsError {
     NoGpgIdFile(String),
     #[error("{RED}Error: Failed to set contents of clipboard{RESET}")]
     ClipFailed,
+    #[error("{RED}Error: stdout was not a tty{RESET}")]
+    StdoutNotTty,
 }

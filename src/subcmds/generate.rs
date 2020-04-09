@@ -1,4 +1,6 @@
 use std::fs;
+use std::io;
+use std::io::Write;
 use std::os::unix::fs::OpenOptionsExt;
 use std::str;
 
@@ -57,13 +59,14 @@ pub(crate) fn generate(secret_name: String, length: Option<usize>, flags: Flags)
     if clip {
         clipboard::clip(&secret, force)?;
 
-        println!(
+        writeln!(
+            io::stdout(),
             "Copied {yellow}{}{reset} to the clipboard, which will clear in {} seconds.",
             &secret_name,
             *PASSWORD_STORE_CLIP_TIME,
             yellow = color::Fg(color::Yellow),
             reset = style::Reset,
-        );
+        )?;
     }
 
     if in_place {
@@ -80,7 +83,7 @@ pub(crate) fn generate(secret_name: String, length: Option<usize>, flags: Flags)
         )?;
 
         if !clip {
-            println!(
+            writeln!(io::stdout(),
                 "{bold}The generated secret for {underline}{}{reset}{bold} is:\n{yellow}{bold}{}{reset}",
                 secret_name,
                 secret,
@@ -88,7 +91,7 @@ pub(crate) fn generate(secret_name: String, length: Option<usize>, flags: Flags)
                 underline = style::Underline,
                 reset = style::Reset,
                 yellow = color::Fg(color::Yellow),
-            );
+            )?;
         }
     } else {
         util::encrypt_bytes_into_file(&secret_bytes, &path, EditMode::Clobber)?;
@@ -98,7 +101,7 @@ pub(crate) fn generate(secret_name: String, length: Option<usize>, flags: Flags)
         )?;
 
         if !clip {
-            println!(
+            writeln!(io::stdout(),
                 "{bold}The generated secret for {underline}{}{reset}{bold} is:\n{yellow}{bold}{}{reset}",
                 secret_name,
                 secret,
@@ -106,7 +109,7 @@ pub(crate) fn generate(secret_name: String, length: Option<usize>, flags: Flags)
                 underline = style::Underline,
                 reset = style::Reset,
                 yellow = color::Fg(color::Yellow),
-            );
+            )?;
         }
     }
 

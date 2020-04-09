@@ -1,53 +1,50 @@
-# pass-rs
+# passrs
 
-`pass-rs` attempts to be a replacement for [`pass`](https://passwordstore.org/),
-written in Rust.
+`passrs` is a reimplementation of [`pass`](https://passwordstore.org/) in Rust.
 
-## Inspirations
+## Inspiration
 
 While `pass-rs` was inspired by [`gopass`](https://github.com/gopasspw/gopass/),
 it does not accomplish the same goals, nor does it try to. For example, you will
 not find the ability to specify recipients on a per-secret basis (this is only
-done on a store or substore basis, utilizing the `.gpg-id` file), it does not
-expose an API for use in browser extensions, and it does not support any
-cryptography protocol aside from OpenPGP.
+done on a store or substore basis, utilizing the keys stored in the `.gpg-id`
+file), it does not expose an API for use in browser extensions, and it does not
+support any cryptography protocol aside from OpenPGP.
 
 ## Security
 
-I should probably add a big, red, flashy warning about this: **I am not security
-minded in any way and therefore cannot guarantee the security of this
-implementation**. I wrote this for fun. The past few weeks while I have been on
-break from school, I wanted something to do with Rust aside from reading posts
-on [r/rust](https://reddit.com/r/rust), as insightful as they may be. Much of
-the code in this project is amateurish at best.
+I should probably add a big, red, flashy warning about this: **I do not yet have
+any knowledge in the way of developing programs with security in mind, and
+therefore cannot guarantee the security of this implementation. I take no
+responsibility for any damage caused to the integrity of your password store and
+related files.** That said, however, I will do my best to resolve any problems
+that may arise in order to improve this project.
 
 In another vein: there is only one instance of unsafe code, and that is in
 [`util::set_permissions_recursive`](./src/util.rs) -- a call to `libc::getuid()`
-to check if the user owns the path about be to operated on.
+to facilitate checking if the user owns the path about be to operated on.
 
 ## Dependencies
 
-Before you get started with installing and running `passrs`, you will need a few
-dependencies: the first of which is the `gpgme` library.
+Before you get started with installing and running the `passrs` binary, you will
+need a few dependencies: the first of which is the `gpgme` library.
 
 ## Installation
 
-With that infodump out of the way, let's get to the fun stuff. At the moment,
-only Linux systems are supported; however, more targets might come down the
-line, as I become more competent in Rust.
+With that out of the way, let's get to the fun stuff. At the moment, only Linux
+systems are supported; however, more targets might come down the line, as I
+become more competent in Rust.
 
 To install the `passrs` binary, run:
 
-``` sh
-$ cargo install pass-rs
+```sh
+$ cargo install passrs
 ```
 
-<sup>the binary intentionally does not have a hyphen, while the crate name
-does</sup>
-
 ## Differences to unix pass
-  - TODO
-  - env vars that `pass` supports, but we do not:
+  - `passrs find` does not display a tree of the found entries, unlike `pass find`
+  - lack of support for deinitializing store
+  - lack of support for the following env vars:
     - PASSWORD_STORE_ENABLE_EXTENSIONS
     - PASSWORD_STORE_EXTENSIONS_DIR
     - PASSWORD_STORE_GPG_OPTS

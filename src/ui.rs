@@ -1,3 +1,12 @@
+// TODO: maybe switch to mitsuhiko/dialoguer + mitsuhiko/console?
+// "is_tty" can be replaced with console::user_attended
+// for alt-screen mode: echo -e "\e[?1049h" (in), echo -e "\e[?1049l" (out)
+// or tput smcup, tput rmcup
+// or write!(f, csi!("?1049h")), flush stdout, write!(f, csi!("?1049l"))
+// macro_rules! csi {
+//     ($( $l:expr ),*) => { concat!("\x1B[", $( $l ),*) };
+// }
+// alt: use terminfo::capability::{Enter,Exit}CaMode
 //! Fancy user interface
 //!
 //! # ui
@@ -49,19 +58,16 @@ struct Ui {
 impl Ui {
     /// `entries` is a Vec containing the items to display as a part of the
     /// SelectableList
-    fn new(mut entries: Vec<String>) -> Ui {
+    fn new(entries: Vec<String>) -> Ui {
         assert!(!entries.is_empty());
 
         let entries: Vec<String> = entries
-            .iter_mut()
+            .iter()
             // We don't want to display the path to the password store or
             // extension, so chop those parts off
             .map(|entry| {
-                if entry.ends_with(".gpg") {
-                    entry.truncate(entry.len() - 4);
-                }
-                // Don't show PASSWORD_STORE_DIR in entry name
-                entry[*STORE_LEN..].to_owned()
+                // Don't show PASSWORD_STORE_DIR or .gpg in UI
+                entry[*STORE_LEN..entry.rfind(".gpg").unwrap_or_else(|| entry.len())].to_owned()
             })
             .collect();
 
@@ -104,7 +110,7 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
     terminal.clear()?;
 
     loop {
-        // TODO: once terminal width is smaller than max_width, reflow
+        // FIXME: once terminal width is smaller than max_width, reflow
         // paragraphs
         let size = terminal.size()?;
 
@@ -254,12 +260,15 @@ pub fn display_matches_for_target(target: &str) -> Result<UiResult> {
         return Ok(UiResult::Success(matches[0].to_owned()));
     }
 
-    eprintln!(
-        "{yellow}Entry '{}' not found. Starting search...{reset}\n",
-        &target,
-        yellow = color::Fg(color::Yellow),
-        reset = style::Reset
-    );
+    if termion::is_tty(&io::stdout()) {
+        writeln!(
+            io::stderr(),
+            "{yellow}Entry '{}' not found. Starting search...{reset}\n",
+            &target,
+            yellow = color::Fg(color::Yellow),
+            reset = style::Reset
+        )?;
+    }
 
     Ok(self::display_matches(matches)?)
 }

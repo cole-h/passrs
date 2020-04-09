@@ -25,9 +25,9 @@
 // OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-use std::fmt;
-use std::fmt::Display;
 use std::fs;
+use std::io;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
@@ -92,11 +92,7 @@ impl Tree {
         self.root.display().to_string()
     }
 
-    fn draw_tree(
-        f: &mut fmt::Formatter,
-        mut branches: Vec<Tree>,
-        prefix: Vec<bool>,
-    ) -> fmt::Result {
+    fn draw_tree(mut branches: Vec<Tree>, prefix: Vec<bool>) -> Result<()> {
         branches.sort_by(|a, b| {
             a.root_path()
                 .to_ascii_lowercase()
@@ -115,16 +111,16 @@ impl Tree {
 
             for pre in &prefix {
                 if *pre {
-                    write!(f, "{}", BLANK)?;
+                    write!(io::stdout(), "{}", BLANK)?;
                 } else {
-                    write!(f, "{}", LINE)?;
+                    write!(io::stdout(), "{}", LINE)?;
                 }
             }
 
             if last {
                 if branch.root.is_dir() {
                     writeln!(
-                        f,
+                        io::stdout(),
                         "{}{blue}{bold}{}{reset}",
                         CORNER,
                         leaf_name,
@@ -132,14 +128,16 @@ impl Tree {
                         blue = color::Fg(color::Blue),
                         reset = style::Reset
                     )?;
-                } else if leaf_name.ends_with(".gpg") {
-                    writeln!(f, "{}{}", CORNER, &leaf_name[..leaf_name.len() - 4])?;
                 } else {
-                    writeln!(f, "{}{}", CORNER, leaf_name)?;
+                    // if the leaf ends with .gpg, don't show that
+                    let leaf_name =
+                        &leaf_name[..leaf_name.rfind(".gpg").unwrap_or_else(|| leaf_name.len())];
+
+                    writeln!(io::stdout(), "{}{}", CORNER, leaf_name)?;
                 }
             } else if branch.root.is_dir() {
                 writeln!(
-                    f,
+                    io::stdout(),
                     "{}{blue}{bold}{}{reset}",
                     EDGE,
                     leaf_name,
@@ -147,24 +145,24 @@ impl Tree {
                     blue = color::Fg(color::Blue),
                     reset = style::Reset
                 )?;
-            } else if leaf_name.ends_with(".gpg") {
-                writeln!(f, "{}{}", EDGE, &leaf_name[..leaf_name.len() - 4])?;
             } else {
-                writeln!(f, "{}{}", EDGE, leaf_name)?;
+                // if the leaf ends with .gpg, don't show that
+                let leaf_name =
+                    &leaf_name[..leaf_name.rfind(".gpg").unwrap_or_else(|| leaf_name.len())];
+
+                writeln!(io::stdout(), "{}{}", EDGE, leaf_name)?;
             }
 
             if !branch.leaves.is_empty() {
                 prefix.push(last);
-                let _ = Self::draw_tree(f, branch.leaves.clone(), prefix);
+                Tree::draw_tree(branch.leaves.clone(), prefix)?;
             }
         }
 
-        write!(f, "")
+        Ok(())
     }
-}
 
-impl Display for Tree {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    pub fn display_tree(&self) -> Result<()> {
         let name = if self.root == *PASSWORD_STORE_DIR {
             "Password Store"
         } else {
@@ -177,7 +175,7 @@ impl Display for Tree {
 
         if self.root.is_dir() {
             writeln!(
-                f,
+                io::stdout(),
                 "{bold}{blue}{}{reset}",
                 name,
                 bold = style::Bold,
@@ -186,7 +184,7 @@ impl Display for Tree {
             )?;
         } else {
             writeln!(
-                f,
+                io::stdout(),
                 "{}",
                 self.root
                     .file_name()
@@ -196,6 +194,8 @@ impl Display for Tree {
             )?;
         }
 
-        Self::draw_tree(f, self.leaves.clone(), Vec::new())
+        Tree::draw_tree(self.leaves.clone(), Vec::new())?;
+
+        Ok(())
     }
 }

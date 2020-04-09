@@ -4,6 +4,9 @@
 //!
 //! [structopt]: https://docs.rs/structopt
 
+use std::io;
+use std::io::Write;
+
 use anyhow::Result;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
@@ -12,6 +15,7 @@ use crate::consts::VERSION;
 use crate::subcmds::{cp, edit, find, generate, git, grep, init, insert, ls, mv, rm, show, unclip};
 use crate::util;
 
+// TODO: check out argh: https://github.com/google/argh
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "passrs",
@@ -315,10 +319,12 @@ pub fn opt() -> Result<()> {
                     ..Default::default()
                 };
 
+                util::ensure_stdout_is_tty()?;
                 util::verify_store_exists()?;
                 insert::insert(secret_name, flags)?;
             }
             PassSubcmd::Edit { secret_name } => {
+                util::ensure_stdout_is_tty()?;
                 util::verify_store_exists()?;
                 edit::edit(secret_name)?;
             }
@@ -338,6 +344,7 @@ pub fn opt() -> Result<()> {
                     ..Default::default()
                 };
 
+                util::ensure_stdout_is_tty()?;
                 util::verify_store_exists()?;
                 generate::generate(secret_name, length, flags)?;
             }
@@ -352,6 +359,7 @@ pub fn opt() -> Result<()> {
                     ..Default::default()
                 };
 
+                util::ensure_stdout_is_tty()?;
                 util::verify_store_exists()?;
                 rm::rm(secret_name, flags)?;
             }
@@ -360,6 +368,7 @@ pub fn opt() -> Result<()> {
                 new_path,
                 force,
             } => {
+                util::ensure_stdout_is_tty()?;
                 util::verify_store_exists()?;
                 mv::mv(old_path, new_path, force)?;
             }
@@ -368,10 +377,12 @@ pub fn opt() -> Result<()> {
                 new_path,
                 force,
             } => {
+                util::ensure_stdout_is_tty()?;
                 util::verify_store_exists()?;
                 cp::cp(old_path, new_path, force)?;
             }
             PassSubcmd::Git { git_command_args } => {
+                util::ensure_stdout_is_tty()?;
                 util::verify_store_exists()?;
                 git::git(git_command_args)?;
             }
@@ -406,6 +417,7 @@ pub fn opt() -> Result<()> {
                             ..Default::default()
                         };
 
+                        util::ensure_stdout_is_tty()?;
                         util::verify_store_exists()?;
                         insert::insert(secret_name, algorithm, digits, period, flags)?;
                     }
@@ -425,6 +437,7 @@ pub fn opt() -> Result<()> {
                             ..Default::default()
                         };
 
+                        util::ensure_stdout_is_tty()?;
                         util::verify_store_exists()?;
                         append::append(secret_name, algorithm, digits, period, flags)?;
                     }
@@ -446,7 +459,7 @@ pub fn opt() -> Result<()> {
                         util::verify_store_exists()?;
 
                         match validate::validate(uri) {
-                            Ok(_) => println!("URI is valid."),
+                            Ok(_) => writeln!(io::stdout(), "URI is valid.")?,
                             Err(e) => return Err(e),
                         }
                     }

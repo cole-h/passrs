@@ -162,6 +162,7 @@ where
     }
 
     if matches.is_empty() {
+        // TODO
         Err(PassrsError::NoMatchesFound(target.to_owned()).into())
     } else {
         matches.sort_by(|a, b| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()));
@@ -431,6 +432,7 @@ where
         }
     }
 
+    // TODO
     Err(PassrsError::NoGpgIdFile(path.display().to_string()).into())
 }
 
@@ -450,7 +452,7 @@ where
     // NOTE: similarly implemented in subcmds/init.rs
     if let Ok(repo) = Repository::open(&*PASSWORD_STORE_DIR) {
         if repo.statuses(None)?.is_empty() {
-            println!("Nothing to do");
+            writeln!(io::stdout(), "Nothing to do")?;
             return Ok(());
         }
 
@@ -534,7 +536,7 @@ where
             &commit_message,
         )?;
 
-        let diff = repo.diff_tree_to_tree(
+        let mut diff = repo.diff_tree_to_tree(
             repo.revparse_single("HEAD^")?
                 .peel(git2::ObjectType::Tree)?
                 .as_tree(),
@@ -543,14 +545,23 @@ where
                 .as_tree(),
             None,
         )?;
+        diff.find_similar(None)?; // TODO: see how this works
+
         let stats = diff.stats()?;
         let buf = stats.to_buf(git2::DiffStatsFormat::SHORT, 80)?;
 
-        println!("[{} {:.7}] {}", branch, commit, commit_message);
-        print!(
+        writeln!(
+            io::stdout(),
+            "[{} {:.7}] {}",
+            branch,
+            commit,
+            commit_message
+        )?;
+        write!(
+            io::stdout(),
             "{}",
             str::from_utf8(&*buf).with_context(|| "diffstats should be valid utf8")?
-        );
+        )?;
 
         for entry in statuses
             .iter()
@@ -581,18 +592,25 @@ where
                 (Some(old), Some(new)) if old != new => {
                     let percent_change = 100;
 
-                    println!(
+                    writeln!(
+                        io::stdout(),
                         " {} {} => {} ({}%)",
                         index_status,
                         old.display(),
                         new.display(),
                         percent_change
-                    );
+                    )?;
                 }
                 (Some(old), Some(_)) if index_status == "rewrite" => {
                     let percent_change = 100;
 
-                    println!(" {} {} ({}%)", index_status, old.display(), percent_change);
+                    writeln!(
+                        io::stdout(),
+                        " {} {} ({}%)",
+                        index_status,
+                        old.display(),
+                        percent_change
+                    )?;
                 }
                 (old, new) => {
                     let path = old
@@ -605,7 +623,13 @@ where
                         None => 0o100_644,
                     };
 
-                    println!(" {} mode {:o} {}", index_status, mode, path.display());
+                    writeln!(
+                        io::stdout(),
+                        " {} mode {:o} {}",
+                        index_status,
+                        mode,
+                        path.display()
+                    )?;
                 }
             }
         }
@@ -663,7 +687,7 @@ where
     let mut stdin = stdin.lock();
 
     let secret = if echo {
-        print!("Enter secret for {}: ", secret_name);
+        write!(io::stdout(), "Enter secret for {}: ", secret_name)?;
         io::stdout().flush()?;
         let input = TermRead::read_line(&mut stdin)?;
 
@@ -673,10 +697,11 @@ where
 
         input
     } else if multiline {
-        print!(
+        write!(
+            io::stdout(),
             "Enter the contents of {} and press Ctrl-D when finished:\n\n",
             secret_name
-        );
+        )?;
         let mut input = Vec::new();
 
         for line in stdin.lines() {
@@ -685,11 +710,11 @@ where
 
         Some(input.join("\n"))
     } else {
-        print!("Enter secret for {}: ", secret_name);
+        write!(io::stdout(), "Enter secret for {}: ", secret_name)?;
         io::stdout().flush()?;
         let input = {
             let input = stdin.read_passwd(&mut io::stdout())?;
-            println!();
+            writeln!(io::stdout())?;
 
             if let Some(input) = input {
                 input
@@ -698,11 +723,11 @@ where
             }
         };
 
-        print!("Re-enter secret for {}: ", secret_name);
+        write!(io::stdout(), "Re-enter secret for {}: ", secret_name)?;
         io::stdout().flush()?;
         let check = {
             let input = stdin.read_passwd(&mut io::stdout())?;
-            println!();
+            writeln!(io::stdout())?;
 
             if let Some(input) = input {
                 input
@@ -732,11 +757,11 @@ where
     let stdin = io::stdin();
     let mut stdin = stdin.lock();
 
-    print!("{} [y/N] ", prompt);
+    write!(io::stdout(), "{} [y/N] ", prompt)?;
     io::stdout().flush()?;
 
     match TermRead::read_line(&mut stdin)? {
-        Some(reply) if reply.to_ascii_lowercase().starts_with('y') => Ok(true),
+        Some(ref reply) if reply.to_ascii_lowercase().starts_with('y') => Ok(true),
         _ => Ok(false),
     }
 }
@@ -879,6 +904,16 @@ where
             path.parent()
                 .with_context(|| "path's parent doesn't exist")?,
         ),
+    }
+}
+
+/// Some subcommands require user interaction, which in turn requires stdout is
+/// a tty.
+pub fn ensure_stdout_is_tty() -> Result<()> {
+    if termion::is_tty(&io::stdout()) {
+        Ok(())
+    } else {
+        Err(PassrsError::StdoutNotTty.into())
     }
 }
 

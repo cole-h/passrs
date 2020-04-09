@@ -1,3 +1,6 @@
+use std::io;
+use std::io::Write;
+
 use anyhow::Result;
 use qrcode::QrCode;
 
@@ -18,7 +21,7 @@ pub(crate) fn uri(secret_name: String, flags: Flags) -> Result<()> {
 
     if let UiResult::Success(file) = file {
         let lines = util::decrypt_file_into_strings(&file)?;
-        let file = file[*STORE_LEN..file.len() - 4].to_owned();
+        let file = file[*STORE_LEN..file.rfind(".gpg").unwrap()].to_owned();
         let mut ret = Err(PassrsError::NoUriFound(file).into());
 
         for otp in lines {
@@ -31,15 +34,15 @@ pub(crate) fn uri(secret_name: String, flags: Flags) -> Result<()> {
                     let code = QrCode::new(otp.as_bytes())?;
                     let rows = self::qr_grid(code);
 
-                    println!();
+                    writeln!(io::stdout())?;
                     for row in rows.iter() {
                         for pixel in row.iter() {
-                            print!("{}", pixel);
+                            write!(io::stdout(), "{}", pixel)?;
                         }
-                        println!();
+                        writeln!(io::stdout())?;
                     }
                 } else {
-                    println!("{}", otp);
+                    writeln!(io::stdout(), "{}", otp)?;
                 }
 
                 break;

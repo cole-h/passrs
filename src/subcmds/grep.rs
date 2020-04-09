@@ -62,7 +62,7 @@ pub(crate) fn grep(search: String) -> Result<()> {
         let pre = &path[*STORE_LEN..separator];
         // We guarantee all paths end in .gpg by this point, so we can cut it
         // off without a problem (famous last words)
-        let file = &path[separator..path.len() - 4];
+        let file = &path[separator..path.rfind(".gpg").unwrap()];
         let contents = util::decrypt_file_into_bytes(path)?;
         let formatted_path = format!(
             "{bold}{}{nobold}{}",

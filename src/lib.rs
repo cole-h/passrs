@@ -1,4 +1,4 @@
-//! `passrs` is a reimplementation of [`pass`] in Rust. Most of the
+//! The `passrs` binary is a reimplementation of [`pass`] in Rust. Most of the
 //! functionality has been ported, but not all.
 //!
 //! ## Present functionality

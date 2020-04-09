@@ -64,10 +64,7 @@ pub(crate) fn insert(
             validate::validate(&secret)?;
 
             if generate {
-                let code = code::generate_totp(&secret)?;
-                let period = validate::get_period(&secret)?;
-
-                code::display_code(&code, period)?;
+                code::display_code(&secret)?;
             }
 
             util::encrypt_bytes_into_file(secret.as_bytes(), &path, EditMode::Clobber)?;
@@ -83,10 +80,7 @@ pub(crate) fn insert(
             validate::validate(&secret)?;
 
             if generate {
-                let code = code::generate_totp(&secret)?;
-                let period = validate::get_period(&secret)?;
-
-                code::display_code(&code, period)?;
+                code::display_code(&secret)?;
             }
 
             util::encrypt_bytes_into_file(secret.as_bytes(), &path, EditMode::Clobber)?;

@@ -439,4 +439,4 @@ _passrs() {
     esac
 }
 
-complete -F _passrs -o bashdefault -o default pass-rs
+complete -F _passrs -o bashdefault -o default passrs
