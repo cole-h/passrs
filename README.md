@@ -20,9 +20,9 @@ responsibility for any damage caused to the integrity of your password store and
 related files.** That said, however, I will do my best to resolve any problems
 that may arise in order to improve this project.
 
-In another vein: there is only one instance of unsafe code, and that is in
-[`util::set_permissions_recursive`](./src/util.rs) -- a call to `libc::getuid()`
-to facilitate checking if the user owns the path about be to operated on.
+In another vein: there is only one instance of `unsafe` code, and that is in
+`util::set_permissions_recursive` -- [a call to `libc::getuid()`] to facilitate
+checking if the user owns the path about be to operated on.
 
 ## Dependencies
 
@@ -63,3 +63,5 @@ $ cargo install --git https://github.com/cole-h/pass-rs
     MIT license
 - Portions of this software are derived from the [terminal_qrcode](https://github.com/calum/terminal_qrcode) library, under
     the MIT license
+
+[a call to `libc::getuid()`]: https://github.com/cole-h/pass-rs/blob/dd04ee6c4e0cb977fbac3935db56779eb53d5f17/src/util.rs#L370
