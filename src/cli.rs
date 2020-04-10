@@ -11,7 +11,6 @@ use anyhow::Result;
 use structopt::clap::AppSettings;
 use structopt::StructOpt;
 
-use crate::consts::VERSION;
 use crate::subcmds::{cp, edit, find, generate, git, grep, init, insert, ls, mv, rm, show, unclip};
 use crate::util;
 
@@ -21,7 +20,7 @@ use crate::util;
     name = "passrs",
     set_term_width(80),
     setting = AppSettings::DeriveDisplayOrder,
-    version = &*VERSION.as_str()
+    version = env!("PASSRS_VERSION")
 )]
 struct Pass {
     #[structopt(subcommand)]

@@ -443,7 +443,6 @@ dependencies = [
  "qrcode",
  "regex",
  "ring",
- "rustc_tools_util",
  "structopt",
  "termcolor",
  "termion",
@@ -586,12 +585,6 @@ dependencies = [
  "web-sys",
  "winapi",
 ]
-
-[[package]]
-name = "rustc_tools_util"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b725dadae9fabc488df69a287f5a99c5eaf5d10853842a8a3dfac52476f544ee"
 
 [[package]]
 name = "same-file"
