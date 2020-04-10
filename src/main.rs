@@ -1,8 +1,7 @@
 //! The `passrs` binary
 // TODO: check out sequoia-openpgp: https://gitlab.com/sequoia-pgp/sequoia
 
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 
 fn main() -> io::Result<()> {
     if let Err(err) = passrs::cli::opt() {

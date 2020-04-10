@@ -4,8 +4,7 @@
 //!
 //! [structopt]: https://docs.rs/structopt
 
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 
 use anyhow::Result;
 use structopt::clap::AppSettings;

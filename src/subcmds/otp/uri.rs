@@ -1,16 +1,13 @@
-use std::io;
-use std::io::Write;
+use std::fmt;
+use std::io::{self, Write};
 
 use anyhow::Result;
 use qrcode::QrCode;
 
-use crate::clipboard;
 use crate::consts::STORE_LEN;
-use crate::ui;
-use crate::ui::UiResult;
-use crate::util;
-use crate::Flags;
-use crate::PassrsError;
+use crate::ui::{self, UiResult};
+use crate::{clipboard, util};
+use crate::{Flags, PassrsError};
 
 use super::validate;
 
@@ -72,8 +69,8 @@ impl Default for Cell {
     }
 }
 
-impl std::fmt::Display for Cell {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+impl fmt::Display for Cell {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "\x1b[{};{}m{}\x1b[0;0m", self.fg, self.bg, self.ch)
     }
 }

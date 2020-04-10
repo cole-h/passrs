@@ -7,8 +7,7 @@
 //!
 //! [thiserror]: https://docs.rs/thiserror
 
-use termion::color;
-use termion::style;
+use termion::{color, style};
 use thiserror::Error;
 
 const RED: color::Fg<color::Red> = color::Fg(color::Red);

@@ -47,10 +47,7 @@ pub(crate) fn grep(search: String) -> Result<()> {
             .to_str()
             .with_context(|| "Entry did not contain a valid path")?;
 
-        if !entry.file_type().is_file() {
-            continue;
-        }
-        if !path.ends_with(".gpg") {
+        if !entry.file_type().is_file() || !path.ends_with(".gpg") {
             continue;
         }
 

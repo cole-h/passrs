@@ -2,12 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 
-use crate::util;
-use crate::util::EditMode;
+use crate::util::{self, EditMode};
 use crate::Flags;
 
-use super::code;
-use super::validate;
+use super::{code, validate};
 
 pub(crate) fn append(
     secret_name: String,

@@ -1,6 +1,5 @@
 use std::fs;
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::str;

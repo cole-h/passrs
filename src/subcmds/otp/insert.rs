@@ -4,13 +4,10 @@ use std::os::unix::fs::OpenOptionsExt;
 use anyhow::Result;
 
 use crate::consts::PASSWORD_STORE_UMASK;
-use crate::util;
-use crate::util::EditMode;
-use crate::Flags;
-use crate::PassrsError;
+use crate::util::{self, EditMode};
+use crate::{Flags, PassrsError};
 
-use super::code;
-use super::validate;
+use super::{code, validate};
 
 pub(crate) fn insert(
     secret_name: String,

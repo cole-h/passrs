@@ -6,11 +6,8 @@
 //! helpful function used in more than one place finds its home here.
 
 use std::fs;
-use std::io;
-use std::io::{BufRead, BufReader, Read, Write};
-use std::os::unix::fs::MetadataExt;
-use std::os::unix::fs::OpenOptionsExt;
-use std::os::unix::fs::PermissionsExt;
+use std::io::{self, BufRead, BufReader, Read, Write};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::str;
 

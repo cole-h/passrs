@@ -18,16 +18,14 @@
 //! [`otp-code`]: ../subcmds/otp/code/index.html
 
 use std::env;
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 
 use anyhow::{Context, Result};
-use termion::color;
 use termion::event::Key;
 use termion::input::MouseTerminal;
 use termion::raw::IntoRawMode;
 use termion::screen::AlternateScreen;
-use termion::style;
+use termion::{color, style};
 use tui::backend::TermionBackend;
 use tui::layout::{Constraint, Direction, Layout};
 use tui::style::{Color, Modifier, Style};

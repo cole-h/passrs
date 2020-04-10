@@ -1,18 +1,14 @@
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
-use termion::color;
-use termion::style;
+use termion::{color, style};
 
-use crate::clipboard;
 use crate::consts::{PASSWORD_STORE_CLIP_TIME, STORE_LEN};
 use crate::otp::TOTPBuilder;
-use crate::ui;
-use crate::ui::UiResult;
-use crate::util;
+use crate::ui::{self, UiResult};
 use crate::PassrsError;
+use crate::{clipboard, util};
 
 use super::validate;
 

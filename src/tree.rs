@@ -26,13 +26,11 @@
 // WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use std::fs;
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use termion::color;
-use termion::style;
+use termion::{color, style};
 
 use crate::consts::PASSWORD_STORE_DIR;
 

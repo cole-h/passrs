@@ -1,6 +1,5 @@
 use std::env;
-use std::io;
-use std::io::Write;
+use std::io::{self, Write};
 use std::str;
 use std::thread;
 use std::time;
