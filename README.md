@@ -4,7 +4,7 @@
 
 ## Inspiration
 
-While `pass-rs` was inspired by [`gopass`](https://github.com/gopasspw/gopass/),
+While `passrs` was inspired by [`gopass`](https://github.com/gopasspw/gopass/),
 it does not accomplish the same goals, nor does it try to. For example, you will
 not find the ability to specify recipients on a per-secret basis (this is only
 done on a store or substore basis, utilizing the keys stored in the `.gpg-id`
@@ -39,17 +39,17 @@ become more competent in Rust.
 To install the `passrs` binary, run:
 
 ```sh
-$ cargo install --git https://github.com/cole-h/pass-rs
+$ cargo install --git https://github.com/cole-h/passrs
 ```
 
 ## Differences to unix pass
   - `passrs find` does not display a tree of the found entries, unlike `pass find`
   - lack of support for deinitializing store
   - lack of support for the following env vars:
-    - PASSWORD_STORE_ENABLE_EXTENSIONS
-    - PASSWORD_STORE_EXTENSIONS_DIR
-    - PASSWORD_STORE_GPG_OPTS
-    - GREPOPTIONS
+    - `PASSWORD_STORE_ENABLE_EXTENSIONS`
+    - `PASSWORD_STORE_EXTENSIONS_DIR`
+    - `PASSWORD_STORE_GPG_OPTS`
+    - `GREPOPTIONS`
 
 ## Licensing
 - This software is licensed under the [MIT License](./LICENSE-MIT)
@@ -64,4 +64,4 @@ $ cargo install --git https://github.com/cole-h/pass-rs
 - Portions of this software are derived from the [terminal_qrcode](https://github.com/calum/terminal_qrcode) library, under
     the MIT license
 
-[a call to `libc::getuid()`]: https://github.com/cole-h/pass-rs/blob/dd04ee6c4e0cb977fbac3935db56779eb53d5f17/src/util.rs#L370
+[a call to `libc::getuid()`]: https://github.com/cole-h/passrs/blob/dd04ee6c4e0cb977fbac3935db56779eb53d5f17/src/util.rs#L370
