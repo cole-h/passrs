@@ -27,7 +27,8 @@ to facilitate checking if the user owns the path about be to operated on.
 ## Dependencies
 
 Before you get started with installing and running the `passrs` binary, you will
-need a few dependencies: the first of which is the `gpgme` library.
+need the `gpgme`, `gpg-error`, and `libgit2` libraries (and, obviously, a Rust
+toolchain).
 
 ## Installation
 
@@ -38,7 +39,7 @@ become more competent in Rust.
 To install the `passrs` binary, run:
 
 ```sh
-$ cargo install passrs
+$ cargo install --git https://github.com/cole-h/pass-rs
 ```
 
 ## Differences to unix pass
