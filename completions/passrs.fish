@@ -15,12 +15,12 @@ end
 
 function __fish_passrs_entries
     set -l store (__fish_passrs_store)
-    printf "%s\n" "$store"/**.gpg | string trim -l -c "$store" | string trim -r -c ".gpg"
+    printf "%s\n" "$store"/**.gpg | string replace -r "$store"'/(.*)' '$1' | string replace -r '(.*)\.gpg' '$1'
 end
 
 function __fish_passrs_dirs
     set -l store (__fish_passrs_store)
-    printf "%s\n" "$store"/**/ | string trim -l -c "$store"
+    printf "%s\n" "$store"/**/ | string replace -r "$store"'/(.*)' '$1'
 end
 
 function __fish_passrs_all
