@@ -6,26 +6,24 @@
 
 use std::io::{self, Write};
 
-use anyhow::Result;
-use structopt::clap::AppSettings;
-use structopt::StructOpt;
+use anyhow::{anyhow, Result};
+use clap::{AppSettings, Clap, IntoApp};
 
 use crate::subcmds::{cp, edit, find, generate, git, grep, init, insert, ls, mv, rm, show, unclip};
 use crate::util;
 
-#[derive(Debug, StructOpt)]
-#[structopt(
+#[derive(Clap, Debug)]
+#[clap(
     name = "passrs",
     set_term_width(80),
     version = env!("PASSRS_VERSION")
 )]
 struct Pass {
-    #[structopt(subcommand)]
+    #[clap(subcommand)]
     subcmd: Option<PassSubcmd>,
 }
 
-#[derive(Debug, StructOpt)]
-#[structopt(no_version, setting = AppSettings::DeriveDisplayOrder)]
+#[derive(Clap, Debug)]
 /// A crabby rewrite of `pass`, the standard unix password manager.
 pub(crate) enum PassSubcmd {
     /// Initialize a new store or substore.
@@ -33,8 +31,9 @@ pub(crate) enum PassSubcmd {
         /// The gpg-id(s) to encrypt the store with (default:
         /// $PASSWORD_STORE_KEY).
         gpg_ids: Vec<String>,
-        #[structopt(long, short = "p")]
+        #[clap(long, short = "p")]
         /// The path of the substore to initialize.
+        /// The specified gpg-id(s) is assigned to the specified subfolder.
         path: Option<String>,
     },
     /// List all secrets.
@@ -51,7 +50,7 @@ pub(crate) enum PassSubcmd {
     Show {
         /// The secret to show.
         secret_name: String,
-        #[structopt(long, short = "c", next_line_help = true)]
+        #[clap(long, short = "c", next_line_help = true)]
         #[allow(clippy::option_option)]
         /// Copy the secret to the clipboard. If a line number is specified,
         /// that line (1-based) will be copied. Otherwise, the first line of the
@@ -71,14 +70,15 @@ pub(crate) enum PassSubcmd {
     /// Insert a new secret.
     Insert {
         /// The name of the secret to insert.
+        /// The secret to insert into.
         secret_name: String,
-        #[structopt(long, short = "e", conflicts_with = "multiline")]
+        #[clap(long, short = "e", conflicts_with = "multiline")]
         /// Echo the secret back to the console during entry.
         echo: bool,
-        #[structopt(long, short = "f")]
+        #[clap(long, short = "f")]
         /// Overwrite existing secret.
         force: bool,
-        #[structopt(long, short = "m", conflicts_with = "echo")]
+        #[clap(long, short = "m", conflicts_with = "echo")]
         /// Enable multiline mode.
         multiline: bool,
     },
@@ -93,17 +93,17 @@ pub(crate) enum PassSubcmd {
         secret_name: String,
         /// The length of the secret in characters (default: 24).
         length: Option<usize>,
-        #[structopt(long, short = "c", next_line_help = true)]
+        #[clap(long, short = "c", next_line_help = true)]
         /// Copy the secret to the clipboard. The secret will be cleared in
         /// $PASSWORD_STORE_CLIP_TIME seconds (default: 45).
         clip: bool,
-        #[structopt(long, short = "f", conflicts_with = "in-place")]
+        #[clap(long, short = "f", conflicts_with = "in-place")]
         /// Overwrite existing secret forcefully.
         force: bool,
-        #[structopt(long, short = "i", conflicts_with = "force")]
+        #[clap(long, short = "i", conflicts_with = "force")]
         /// Replace the first line of an existing file.
         in_place: bool,
-        #[structopt(long, short = "n")]
+        #[clap(long, short = "n")]
         /// Disable special symbols.
         no_symbols: bool,
     },
@@ -111,10 +111,10 @@ pub(crate) enum PassSubcmd {
     Rm {
         /// The name of the secret to remove.
         secret_name: String,
-        #[structopt(long, short = "f")]
+        #[clap(long, short = "f")]
         /// Remove forcefully.
         force: bool,
-        #[structopt(long, short = "r")]
+        #[clap(long, short = "r")]
         /// Remove recursively.
         recursive: bool,
     },
@@ -124,7 +124,7 @@ pub(crate) enum PassSubcmd {
         old_path: String,
         /// The path to move to.
         new_path: String,
-        #[structopt(long, short = "f")]
+        #[clap(long, short = "f")]
         /// Force moving.
         force: bool,
     },
@@ -134,11 +134,11 @@ pub(crate) enum PassSubcmd {
         old_path: String,
         /// The path to copy to.
         new_path: String,
-        #[structopt(long, short = "f")]
+        #[clap(long, short = "f")]
         /// Force copying.
         force: bool,
     },
-    #[structopt(settings = &[AppSettings::TrailingVarArg, AppSettings::AllowLeadingHyphen])]
+    #[clap(setting = AppSettings::TrailingVarArg, setting = AppSettings::AllowLeadingHyphen)]
     /// Execute a git command inside the password store.
     Git {
         /// Arguments to pass to the git binary.
@@ -147,12 +147,12 @@ pub(crate) enum PassSubcmd {
     #[cfg(feature = "otp")]
     /// Manage TOTP secrets.
     Otp(Otp),
-    #[structopt(setting = AppSettings::Hidden)]
+    #[clap(setting = AppSettings::Hidden)]
     /// Clipboard daemon functionality.
     Unclip {
         /// How long until the clipboard gets cleared, in seconds.
         timeout: u32,
-        #[structopt(long, short = "f")]
+        #[clap(long, short = "f")]
         /// Clear clipboard even if the checksum doesn't match.
         force: bool,
     },
@@ -160,14 +160,14 @@ pub(crate) enum PassSubcmd {
 
 /// For managing one-time-password (OTP) tokens with passrs.
 #[cfg(feature = "otp")]
-#[derive(Debug, StructOpt)]
-#[structopt(no_version, setting = AppSettings::DeriveDisplayOrder)]
+#[derive(Clap, Debug)]
+#[clap(setting = AppSettings::DeriveDisplayOrder)]
 pub(crate) enum Otp {
     /// Generate a TOTP code from the key in secret-name.
     Code {
         /// The secret to generate the code from.
         secret_name: String,
-        #[structopt(long, short = "c")]
+        #[clap(long, short = "c")]
         /// Copy the secret to the clipboard. The secret will be cleared in
         /// $PASSWORD_STORE_CLIP_TIME seconds (default: 45).
         clip: bool,
@@ -176,26 +176,26 @@ pub(crate) enum Otp {
     Insert {
         /// The name of the secret to insert into.
         secret_name: String,
-        #[structopt(long, short = "e")]
+        #[clap(long, short = "e")]
         /// Echo the secret back to the console during entry.
         echo: bool,
-        #[structopt(long, short = "f")]
+        #[clap(long, short = "f")]
         /// Overwriting existing secret forcefully.
         force: bool,
-        #[structopt(long, short = "g")]
+        #[clap(long, short = "g")]
         /// Generate a TOTP code from the newly-inserted secret.
         generate: bool,
-        #[structopt(long, short = "s")]
+        #[clap(long, short = "s")]
         /// Create a TOTP URI from the provided secret (assumes SHA1 algorithm,
         /// 30 second period, and 6 digits).
         from_secret: bool,
-        #[structopt(long, short = "a", requires = "from-secret")]
+        #[clap(long, short = "a", requires = "from-secret")]
         /// One of SHA1, SHA256, or SHA512.
         algorithm: Option<String>,
-        #[structopt(long, short = "p", requires = "from-secret")]
+        #[clap(long, short = "p", requires = "from-secret")]
         /// How often the TOTP refreshes in seconds.
         period: Option<u32>,
-        #[structopt(long, short = "d", requires = "from-secret")]
+        #[clap(long, short = "d", requires = "from-secret")]
         /// The length of the generated TOTP code in characters.
         digits: Option<usize>,
     },
@@ -203,23 +203,23 @@ pub(crate) enum Otp {
     Append {
         /// The name of the secret to append to.
         secret_name: String,
-        #[structopt(long, short = "e")]
+        #[clap(long, short = "e")]
         /// Echo the secret back to the console during entry.
         echo: bool,
-        #[structopt(long, short = "s")]
+        #[clap(long, short = "s")]
         /// Create a TOTP URI from the provided secret (assumes SHA1 algorithm,
         /// 30 second period, and 6 digits).
         from_secret: bool,
-        #[structopt(long, short = "g")]
+        #[clap(long, short = "g")]
         /// Generate a TOTP code from the newly-appended secret.
         generate: bool,
-        #[structopt(long, short = "a", requires = "from-secret")]
+        #[clap(long, short = "a", requires = "from-secret")]
         /// One of SHA1, SHA256, or SHA512.
         algorithm: Option<String>,
-        #[structopt(long, short = "p", requires = "from-secret")]
+        #[clap(long, short = "p", requires = "from-secret")]
         /// How often the TOTP refreshes in seconds.
         period: Option<u32>,
-        #[structopt(long, short = "d", requires = "from-secret")]
+        #[clap(long, short = "d", requires = "from-secret")]
         /// The length of the TOTP code in characters.
         digits: Option<usize>,
     },
@@ -227,11 +227,11 @@ pub(crate) enum Otp {
     Uri {
         /// The name of the secret that contains the URI to print.
         secret_name: String,
-        #[structopt(long, short = "c", conflicts_with = "qrcode")]
+        #[clap(long, short = "c", conflicts_with = "qrcode")]
         /// Copy the URI to the clipboard. The URI will be cleared in
         /// $PASSWORD_STORE_CLIP_TIME seconds (default: 45).
         clip: bool,
-        #[structopt(long, short = "q", conflicts_with = "clip")]
+        #[clap(long, short = "q", conflicts_with = "clip")]
         /// Generate a QR code to stdout.
         qrcode: bool,
     },
@@ -258,7 +258,7 @@ pub(crate) struct Flags {
 }
 
 pub fn opt() -> Result<()> {
-    let matches = Pass::from_args();
+    let matches = Pass::parse();
 
     // NOTE: committing is handled inside any subcommand that may modify the
     // store
@@ -448,7 +448,10 @@ pub fn opt() -> Result<()> {
         None => match util::verify_store_exists() {
             Ok(_) => ls::ls(None)?,
             Err(_) => {
-                Pass::clap().print_help()?;
+                Pass::into_app()
+                    .print_help()
+                    .map_err(|e| anyhow!("Failed to display help: {:?}", e))?;
+
                 std::process::exit(1);
             }
         },
