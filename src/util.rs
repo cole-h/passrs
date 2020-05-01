@@ -159,7 +159,6 @@ where
     }
 
     if matches.is_empty() {
-        // TODO
         Err(PassrsError::NoMatchesFound(target.to_owned()).into())
     } else {
         matches.sort_by(|a, b| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()));
@@ -429,7 +428,6 @@ where
         }
     }
 
-    // TODO
     Err(PassrsError::NoGpgIdFile(path.display().to_string()).into())
 }
 
@@ -542,7 +540,7 @@ where
                 .as_tree(),
             None,
         )?;
-        diff.find_similar(None)?; // TODO: see how this works
+        diff.find_similar(None)?;
 
         let stats = diff.stats()?;
         let buf = stats.to_buf(git2::DiffStatsFormat::SHORT, 80)?;

@@ -13,7 +13,6 @@ use structopt::StructOpt;
 use crate::subcmds::{cp, edit, find, generate, git, grep, init, insert, ls, mv, rm, show, unclip};
 use crate::util;
 
-// TODO: check out argh: https://github.com/google/argh
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "passrs",

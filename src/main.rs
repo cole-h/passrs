@@ -1,5 +1,4 @@
 //! The `passrs` binary
-// TODO: check out sequoia-openpgp: https://gitlab.com/sequoia-pgp/sequoia
 
 use std::io::{self, Write};
 

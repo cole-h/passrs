@@ -1,12 +1,3 @@
-// TODO: maybe switch to mitsuhiko/dialoguer + mitsuhiko/console?
-// "is_tty" can be replaced with console::user_attended
-// for alt-screen mode: echo -e "\e[?1049h" (in), echo -e "\e[?1049l" (out)
-// or tput smcup, tput rmcup
-// or write!(f, csi!("?1049h")), flush stdout, write!(f, csi!("?1049l"))
-// macro_rules! csi {
-//     ($( $l:expr ),*) => { concat!("\x1B[", $( $l ),*) };
-// }
-// alt: use terminfo::capability::{Enter,Exit}CaMode
 //! Fancy user interface
 //!
 //! # ui
