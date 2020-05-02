@@ -13,7 +13,7 @@ use crate::clipboard;
 use crate::consts::PASSRS_UNCLIP_HASH;
 use crate::PassrsError;
 
-pub(crate) fn unclip(timeout: u64, force: bool) -> Result<()> {
+pub(crate) fn unclip(timeout: u32, force: bool) -> Result<()> {
     if PASSRS_UNCLIP_HASH.is_empty() {
         writeln!(
             io::stderr(),
@@ -50,7 +50,7 @@ pub(crate) fn unclip(timeout: u64, force: bool) -> Result<()> {
         return Err(PassrsError::HashMismatch.into());
     }
 
-    thread::sleep(time::Duration::from_secs(timeout));
+    thread::sleep(time::Duration::from_secs(timeout as u64));
     clipboard::clear()?;
 
     Ok(())

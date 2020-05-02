@@ -17,7 +17,6 @@ use crate::util;
 #[structopt(
     name = "passrs",
     set_term_width(80),
-    setting = AppSettings::DeriveDisplayOrder,
     version = env!("PASSRS_VERSION")
 )]
 struct Pass {
@@ -26,16 +25,16 @@ struct Pass {
 }
 
 #[derive(Debug, StructOpt)]
-#[structopt(no_version)]
-/// A crabby rewrite of `pass`, the standard unix password manager
+#[structopt(no_version, setting = AppSettings::DeriveDisplayOrder)]
+/// A crabby rewrite of `pass`, the standard unix password manager.
 pub(crate) enum PassSubcmd {
     /// Initialize a new store or substore.
     Init {
-        /// The gpg-id(s) to encrypt the store with. If no keys are specified,
-        /// PASSWORD_STORE_KEY will be used.
+        /// The gpg-id(s) to encrypt the store with (default:
+        /// $PASSWORD_STORE_KEY).
         gpg_ids: Vec<String>,
         #[structopt(long, short = "p")]
-        /// The specified gpg-id(s) is assigned to the specified subfolder.
+        /// The path of the substore to initialize.
         path: Option<String>,
     },
     /// List all secrets.
@@ -43,156 +42,139 @@ pub(crate) enum PassSubcmd {
         /// The subfolder to list.
         subfolder: Option<String>,
     },
-    /// List secrets that match secret-name.
+    /// List all secrets that match secret-name.
     Find {
-        #[structopt(required = true)]
-        /// The secret to match.
+        /// The name of the secret to find.
         secret_name: String,
     },
     /// Show existing secret.
     Show {
-        #[structopt(required = true)]
         /// The secret to show.
         secret_name: String,
-        #[structopt(long, short = "c")]
+        #[structopt(long, short = "c", next_line_help = true)]
         #[allow(clippy::option_option)]
-        /// Optionally, put the secret on the clipboard. If a line number is
-        /// specified, that line (1-based) will be copied. Otherwise, the first
-        /// line of the file will be copied. If put on the clipboard, the secret
-        /// will be cleared in PASSWORD_STORE_CLIP_TIME in seconds, or 45
-        /// seconds if unspecified.
+        /// Copy the secret to the clipboard. If a line number is specified,
+        /// that line (1-based) will be copied. Otherwise, the first line of the
+        /// file will be copied. The secret will be cleared in
+        /// $PASSWORD_STORE_CLIP_TIME seconds (default: 45).
         /// NOTE: This flag must be the final argument.
-        // Some(Some(usize)) => contents of line at usize.wrapping_sub(1)
+        // Some(Some(usize)) => contents of line at usize.saturating_sub(1)
         // Some(None) => contents of first line
         // None => don't clip
         clip: Option<Option<usize>>,
     },
     /// Search for pattern in secrets.
     Grep {
-        #[structopt(required = true)]
-        /// The string to grep for.
+        /// The pattern to grep for.
         search_string: String,
     },
     /// Insert a new secret.
     Insert {
-        #[structopt(required = true)]
-        /// The secret to insert into.
+        /// The name of the secret to insert.
         secret_name: String,
         #[structopt(long, short = "e", conflicts_with = "multiline")]
         /// Echo the secret back to the console during entry.
         echo: bool,
         #[structopt(long, short = "f")]
-        /// Overwriting existing secret forcefully.
+        /// Overwrite existing secret.
         force: bool,
         #[structopt(long, short = "m", conflicts_with = "echo")]
         /// Enable multiline mode.
         multiline: bool,
     },
-    /// Insert a new secret or edit an existing one using $EDITOR.
+    /// Edit a secret using $EDITOR.
     Edit {
-        #[structopt(required = true)]
-        /// The secret to edit.
+        /// The name of the secret to edit.
         secret_name: String,
     },
     /// Generate a new secret.
     Generate {
-        #[structopt(required = true)]
-        /// The secret to generate for.
+        /// The name of the secret to generate.
         secret_name: String,
-        #[structopt(long, short = "c")]
-        /// Optionally, put the secret on the clipboard. If put on the
-        /// clipboard, the secret will be cleared in PASSWORD_STORE_CLIP_TIME in
-        /// seconds, or 45 seconds if unspecified.
+        /// The length of the secret in characters (default: 24).
+        length: Option<usize>,
+        #[structopt(long, short = "c", next_line_help = true)]
+        /// Copy the secret to the clipboard. The secret will be cleared in
+        /// $PASSWORD_STORE_CLIP_TIME seconds (default: 45).
         clip: bool,
         #[structopt(long, short = "f", conflicts_with = "in-place")]
-        /// Overwriting existing secret forcefully.
+        /// Overwrite existing secret forcefully.
         force: bool,
         #[structopt(long, short = "i", conflicts_with = "force")]
-        /// Remove only the first line of an existing file with a new secret.
+        /// Replace the first line of an existing file.
         in_place: bool,
         #[structopt(long, short = "n")]
         /// Disable special symbols.
         no_symbols: bool,
-        /// The length of the secret, which defaults to 24 if not specified.
-        length: Option<usize>,
     },
     /// Remove existing secret or directory.
     Rm {
-        #[structopt(required = true)]
-        /// The secret to remove.
+        /// The name of the secret to remove.
         secret_name: String,
         #[structopt(long, short = "f")]
-        /// Delete forcefully.
+        /// Remove forcefully.
         force: bool,
         #[structopt(long, short = "r")]
-        /// Delete recursively.
+        /// Remove recursively.
         recursive: bool,
     },
     /// Move old-path to new-path.
     Mv {
-        #[structopt(required = true)]
         /// The path to move from.
         old_path: String,
-        #[structopt(required = true)]
         /// The path to move to.
         new_path: String,
         #[structopt(long, short = "f")]
-        /// Move forcefully.
+        /// Force moving.
         force: bool,
     },
     /// Copy old-path to new-path.
     Cp {
-        #[structopt(required = true)]
         /// The path to copy from.
         old_path: String,
-        #[structopt(required = true)]
         /// The path to copy to.
         new_path: String,
         #[structopt(long, short = "f")]
-        /// Copy forcefully.
+        /// Force copying.
         force: bool,
     },
     #[structopt(settings = &[AppSettings::TrailingVarArg, AppSettings::AllowLeadingHyphen])]
     /// Execute a git command inside the password store.
     Git {
-        /// Arguments to be passed to the git binary
+        /// Arguments to pass to the git binary.
         git_command_args: Vec<String>,
     },
     #[cfg(feature = "otp")]
-    /// Manage TOTP secrets
+    /// Manage TOTP secrets.
     Otp(Otp),
     #[structopt(setting = AppSettings::Hidden)]
     /// Clipboard daemon functionality.
     Unclip {
-        #[structopt(required = true)]
-        /// Amount of time to kill the clipboard after.
-        timeout: u64,
+        /// How long until the clipboard gets cleared, in seconds.
+        timeout: u32,
         #[structopt(long, short = "f")]
-        /// Clear clipboard even if checksum mismatches
+        /// Clear clipboard even if the checksum doesn't match.
         force: bool,
     },
 }
 
-/// For managing one-time-password (OTP) tokens with passrs
+/// For managing one-time-password (OTP) tokens with passrs.
 #[cfg(feature = "otp")]
 #[derive(Debug, StructOpt)]
 #[structopt(no_version, setting = AppSettings::DeriveDisplayOrder)]
 pub(crate) enum Otp {
-    /// Generate and print a TOTP code from the key in secret-name.
+    /// Generate a TOTP code from the key in secret-name.
     Code {
-        #[structopt(required = true)]
         /// The secret to generate the code from.
         secret_name: String,
         #[structopt(long, short = "c")]
-        /// Optionally, put the generated code on the clipboard. If put on the
-        /// clipboard, the code will be cleared in PASSWORD_STORE_CLIP_TIME in
-        /// seconds, or 45 seconds if unspecified.
+        /// Copy the secret to the clipboard. The secret will be cleared in
+        /// $PASSWORD_STORE_CLIP_TIME seconds (default: 45).
         clip: bool,
     },
-    /// Insert TOTP secret to secret-name.
+    /// Insert a TOTP secret to secret-name.
     Insert {
-        #[structopt(required = true)]
-        /// The secret to insert into.
+        /// The name of the secret to insert into.
         secret_name: String,
         #[structopt(long, short = "e")]
         /// Echo the secret back to the console during entry.
@@ -204,51 +186,50 @@ pub(crate) enum Otp {
         /// Generate a TOTP code from the newly-inserted secret.
         generate: bool,
         #[structopt(long, short = "s")]
-        /// Create a TOTP URI from the provided secret. Assumes SHA1 algorithm,
-        /// 30-second period, and 6 digits.
+        /// Create a TOTP URI from the provided secret (assumes SHA1 algorithm,
+        /// 30 second period, and 6 digits).
         from_secret: bool,
-        #[structopt(long, requires = "from-secret")]
+        #[structopt(long, short = "a", requires = "from-secret")]
         /// One of SHA1, SHA256, or SHA512.
         algorithm: Option<String>,
-        #[structopt(long, requires = "from-secret")]
-        /// How often the TOTP refreshes.
+        #[structopt(long, short = "p", requires = "from-secret")]
+        /// How often the TOTP refreshes in seconds.
         period: Option<u32>,
-        #[structopt(long, requires = "from-secret")]
-        /// The length of the generated TOTP code.
+        #[structopt(long, short = "d", requires = "from-secret")]
+        /// The length of the generated TOTP code in characters.
         digits: Option<usize>,
     },
     /// Append a TOTP secret to secret-name.
     Append {
-        #[structopt(required = true)]
-        /// The secret to append to.
+        /// The name of the secret to append to.
         secret_name: String,
         #[structopt(long, short = "e")]
         /// Echo the secret back to the console during entry.
         echo: bool,
         #[structopt(long, short = "s")]
-        /// Create a TOTP URI from the provided secret. Assumes SHA1 algorithm,
-        /// 30-second period, and 6 digits.
+        /// Create a TOTP URI from the provided secret (assumes SHA1 algorithm,
+        /// 30 second period, and 6 digits).
         from_secret: bool,
         #[structopt(long, short = "g")]
         /// Generate a TOTP code from the newly-appended secret.
         generate: bool,
-        #[structopt(long, requires = "from-secret")]
+        #[structopt(long, short = "a", requires = "from-secret")]
         /// One of SHA1, SHA256, or SHA512.
         algorithm: Option<String>,
-        #[structopt(long, requires = "from-secret")]
-        /// How often the TOTP refreshes.
+        #[structopt(long, short = "p", requires = "from-secret")]
+        /// How often the TOTP refreshes in seconds.
         period: Option<u32>,
-        #[structopt(long, requires = "from-secret")]
-        /// The length of the TOTP code.
+        #[structopt(long, short = "d", requires = "from-secret")]
+        /// The length of the TOTP code in characters.
         digits: Option<usize>,
     },
     /// Print the key URI stored in secret-name.
     Uri {
-        #[structopt(required = true)]
-        /// The secret that contains a URI to print.
+        /// The name of the secret that contains the URI to print.
         secret_name: String,
         #[structopt(long, short = "c", conflicts_with = "qrcode")]
-        /// Copy the URI to the clipboard.
+        /// Copy the URI to the clipboard. The URI will be cleared in
+        /// $PASSWORD_STORE_CLIP_TIME seconds (default: 45).
         clip: bool,
         #[structopt(long, short = "q", conflicts_with = "clip")]
         /// Generate a QR code to stdout.
@@ -256,7 +237,6 @@ pub(crate) enum Otp {
     },
     /// Test a URI for validity according to the Key Uri Format.
     Validate {
-        #[structopt(required = true)]
         /// The URI to test.
         uri: String,
     },
