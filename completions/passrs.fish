@@ -136,7 +136,7 @@ complete -c $BIN -f \
 ## git
 complete -c $BIN -f -n "__fish_use_subcommand" -a "git" -d 'Execute a git command inside the password store'
 complete -c $BIN -f -n "__fish_seen_subcommand_from git" -s h -l help -d 'Prints help information'
-# TODO: complete as if it was git
+complete -c $BIN -f -n "__fish_seen_subcommand_from git" -a "(__fish_complete_subcommand)"
 
 
 # OTP
