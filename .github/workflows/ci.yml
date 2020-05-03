@@ -37,6 +37,19 @@ jobs:
       - name: Check clippy
         run: cargo +nightly clippy --all-features
 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: cachix/install-nix-action@v8
+      - name: Run tests
+        run: nix-build -E 'import ./default.nix { doCheck = true; release = false; }'
+        env:
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 0
+          RUSTFLAGS: "-C debuginfo=0"
+          # PASSWORD_STORE_DIR: ${{ github.workspace }}/tests/test_repo
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -48,16 +61,3 @@ jobs:
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 0
           RUSTFLAGS: "-C debuginfo=0"
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: cachix/install-nix-action@v8
-      - name: Run tests
-        run: nix-build -E 'import ./default.nix { doCheck = true; }'
-        env:
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 0
-          RUSTFLAGS: "-C debuginfo=0"
-          PASSWORD_STORE_DIR: ${{ github.workspace }}/tests/test_repo
