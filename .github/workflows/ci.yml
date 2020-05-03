@@ -16,7 +16,7 @@ jobs:
   format:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v2
     - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: nightly
@@ -27,7 +27,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v2
       - uses: hecrj/setup-rust-action@v1
         with:
           rust-version: nightly
@@ -40,30 +40,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - name: Install GPG libs
-      run: sudo apt-get install libgpg-error-dev libgpgme-dev
-    - name: Run build
-      run: cargo build --verbose
-      env:
-        RUST_BACKTRACE: 1
-        CARGO_INCREMENTAL: 0
-        RUSTFLAGS: "-C debuginfo=0"
+      - uses: actions/checkout@v2
+      - uses: cachix/install-nix-action@v8
+      - name: Run build
+        run: nix-build
+        env:
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 0
+          RUSTFLAGS: "-C debuginfo=0"
 
-  gpg:
+  test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - name: Install GPG libs
-      run: sudo apt-get install libgpg-error-dev libgpgme-dev
-    - name: Import secret test key
-      run: gpg --import ${{ github.workspace }}/tests/passrs@testuser.secret.asc
-    - name: Trust test key
-      run: echo "4B0D9BBAC5C8329C035B125CF6EF0D39C5F84192:6:" | gpg --import-ownertrust
-    - name: Run tests
-      run: cargo test --verbose
-      env:
-        RUST_BACKTRACE: 1
-        CARGO_INCREMENTAL: 0
-        RUSTFLAGS: "-C debuginfo=0"
-        PASSWORD_STORE_DIR: ${{ github.workspace }}/tests/test_repo
+      - uses: actions/checkout@v2
+      - uses: cachix/install-nix-action@v8
+      - name: Run tests
+        run: nix-build -E 'import ./default.nix { doCheck = true; }'
+        env:
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 0
+          RUSTFLAGS: "-C debuginfo=0"
+          PASSWORD_STORE_DIR: ${{ github.workspace }}/tests/test_repo

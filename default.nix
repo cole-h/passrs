@@ -1,3 +1,4 @@
+{ doCheck ? false }:
 let
   sources = import ./nix/sources.nix;
   mozilla = import sources.nixpkgs-mozilla;
@@ -26,7 +27,7 @@ naersk.buildPackage {
     libgpgerror
   ];
 
-  doCheck = true;
+  inherit doCheck;
 
   checkInputs = with pkgs; [
     gnupg
