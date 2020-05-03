@@ -1,16 +1,40 @@
 use std::env;
+use std::io::Write;
 use std::path::PathBuf;
+use std::process::{Command, Stdio};
 
 use passrs::consts;
 use passrs::util;
 
-fn set_password_store() {
+fn test_setup() {
+    println!("Importing test key");
+    Command::new("gpg")
+        .args(&["--import", "./tests/passrs@testuser.secret.asc"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("failed to spawn gpg to import secret key");
+
+    println!("Trusting test key");
+    Command::new("gpg")
+        .arg("--import-ownertrust")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .expect("failed to spawn gpg to import ownertrust")
+        .stdin
+        .expect("stdin wasn't captured")
+        .write_all(b"4B0D9BBAC5C8329C035B125CF6EF0D39C5F84192:6:\n")
+        .expect("failed to write to stdin");
+
+    env::set_var("RUST_BACKTRACE", "1");
     env::set_var("PASSWORD_STORE_DIR", "./tests/test_repo");
 }
 
 #[test]
 fn canonicalize_path() {
-    set_password_store();
+    test_setup();
 
     let paths = [
         "Internet/amazon.com/password",
@@ -30,7 +54,7 @@ fn canonicalize_path() {
 
 #[test]
 fn exact_path() {
-    set_password_store();
+    test_setup();
 
     let paths = [
         "Internet/amazon.com/password",
@@ -50,7 +74,7 @@ fn exact_path() {
 
 #[test]
 fn check_sneaky_paths() {
-    set_password_store();
+    test_setup();
 
     assert!(util::check_sneaky_paths("../../password").is_err());
     assert!(util::check_sneaky_paths("..").is_err());
@@ -61,7 +85,7 @@ fn check_sneaky_paths() {
 
 #[test]
 fn find_matches() {
-    set_password_store();
+    test_setup();
 
     assert!(util::find_matches(".").unwrap().len() > 0);
     assert!(util::find_matches("a").unwrap().len() == 1);
@@ -70,7 +94,7 @@ fn find_matches() {
 
 #[test]
 fn decrypt_file_into_bytes() {
-    set_password_store();
+    test_setup();
 
     let file = "./tests/test_repo/a.gpg";
     let contents = util::decrypt_file_into_bytes(&file).unwrap();
@@ -80,7 +104,7 @@ fn decrypt_file_into_bytes() {
 
 #[test]
 fn decrypt_file_into_strings() {
-    set_password_store();
+    test_setup();
 
     let file = "./tests/test_repo/f.gpg";
     let contents = util::decrypt_file_into_strings(&file).unwrap();
@@ -98,7 +122,7 @@ fn decrypt_file_into_strings() {
 
 #[test]
 fn find_gpg_id() {
-    set_password_store();
+    test_setup();
 
     assert!(util::find_gpg_id("/").is_err());
     assert!(util::find_gpg_id(&*consts::PASSWORD_STORE_DIR).is_ok());
