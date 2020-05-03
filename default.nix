@@ -9,25 +9,32 @@ naersk.buildPackage {
   pname = "passrs";
   version = lib.commitIdFromGitRepo ./.git;
 
-  root = lib.cleanSourceWith {
-    src = toString ./.;
-    filter = name: type:
-      let baseName = baseNameOf (toString name); in
-        !((type == "directory" && baseName == "target")
-          || (type == "symlink" && lib.hasPrefix "result" baseName));
-  };
+  src = builtins.filterSource
+    (path: type: type != "directory" || builtins.baseNameOf path != "target")
+    ./.;
 
   nativeBuildInputs = with pkgs; [
     git # for build script to retrieve git hash and add to version info
-    latest.rustChannels.stable.rust
+    gpgme # `gpgme-config` required by crate gpgme
     installShellFiles
+    libgpgerror # `gpg-error-config` required by crate libgpg-error-sys
   ];
 
   buildInputs = with pkgs; [
     gpgme
-    libgpgerror
     libgit2
+    libgpgerror
   ];
+
+  doCheck = true;
+
+  checkInputs = with pkgs; [
+    gnupg
+  ];
+
+  preCheck = ''
+    export GNUPGHOME=$(mktemp -d)
+  '';
 
   # NOTE: Completions require the gpg2 binary to be in path in order to complete
   # keys for commands like `passrs init`
