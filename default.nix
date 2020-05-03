@@ -1,3 +1,6 @@
+{ doCheck ? false
+, release ? true
+}:
 let
   sources = import ./nix/sources.nix;
   mozilla = import sources.nixpkgs-mozilla;
@@ -26,7 +29,7 @@ naersk.buildPackage {
     libgpgerror
   ];
 
-  doCheck = true;
+  inherit doCheck;
 
   checkInputs = with pkgs; [
     gnupg
@@ -35,6 +38,8 @@ naersk.buildPackage {
   preCheck = ''
     export GNUPGHOME=$(mktemp -d)
   '';
+
+  inherit release;
 
   # NOTE: Completions require the gpg2 binary to be in path in order to complete
   # keys for commands like `passrs init`
