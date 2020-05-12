@@ -153,7 +153,12 @@ where
         if filename == &target.to_owned() && path.ends_with(".gpg") {
             return Ok(vec![path.to_owned()]);
         }
-        if path.ends_with(".gpg") && is_file && path[*STORE_LEN..].contains(target) {
+
+        if path.ends_with(".gpg")
+            && is_file
+            && (path[*STORE_LEN..].contains(target)
+                || path[*STORE_LEN..].to_ascii_lowercase().contains(target))
+        {
             matches.push(path.to_owned());
         }
     }
