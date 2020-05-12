@@ -23,9 +23,9 @@ checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
 
 [[package]]
 name = "bstr"
-version = "0.2.12"
+version = "0.2.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2889e6d50f394968c8bf4240dc3f2a7eb4680844d27308f798229ac9d4725f41"
+checksum = "31accafdb70df7871592c058eca3985b71104e15ac32f64706022c58867da931"
 dependencies = [
  "lazy_static",
  "memchr",
@@ -79,9 +79,9 @@ checksum = "17cc5e6b5ab06331c33589842070416baa137e8b0eb912b008cfd4a78ada7919"
 
 [[package]]
 name = "clap"
-version = "2.33.0"
+version = "2.33.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5067f5bb2d80ef5d68b4c87db81601f0b75bca627bc2ef76b141d7b846a3c6d9"
+checksum = "bdfa80d47f954d53a35a64987ca1422f495b8d6483c0fe9f7117b36c2a792129"
 dependencies = [
  "bitflags",
  "textwrap",
@@ -229,9 +229,9 @@ dependencies = [
 
 [[package]]
 name = "grep-printer"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af257054ab634938220ced2fc08009f3d12c9552d825a981b3a5c9b406d7ad08"
+checksum = "7f34d40c840fe8e413a94598345d8a4bb25fdbb4f3860a6c00a88bb296d89d00"
 dependencies = [
  "bstr",
  "grep-matcher",
@@ -241,9 +241,9 @@ dependencies = [
 
 [[package]]
 name = "grep-regex"
-version = "0.1.7"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1efde08ceb129071d634197f35c7b27ce5825552fba06b037004a66a00c0195"
+checksum = "a7ba5e492a049950acbd60f5d183011fdca66c248663f6b4e118d591eeada3d2"
 dependencies = [
  "aho-corasick",
  "bstr",
@@ -291,9 +291,9 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.8.2"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
+checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
 dependencies = [
  "either",
 ]
@@ -324,9 +324,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.69"
+version = "0.2.70"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99e85c08494b21a9054e7fe1374a732aeadaff3980b6990b94bfd3a70f690005"
+checksum = "3baa92041a6fec78c687fa0cc2b3fae8884f743d672cf551bed1d6dac6988d0f"
 
 [[package]]
 name = "libgit2-sys"
@@ -491,18 +491,18 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.11"
+version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9dd1c38e7b0b6b61bcfbdc08c801f3c3066e884bd8e6764bdd2e5971da1d7c4d"
+checksum = "8872cf6f48eee44265156c111456a700ab3483686b3f96df4cf5481c89157319"
 dependencies = [
  "unicode-xid",
 ]
 
 [[package]]
 name = "psutil"
-version = "3.0.1"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ad9583ff1d00dadb495067e92785d1ca4cf0b6214d1692bf0ccfbb0039d3ba21"
+checksum = "094d0f0f32f77f62cd7d137d9b9599ef257d5c1323b36b25746679de2806f547"
 dependencies = [
  "cfg-if",
  "darwin-libproc",
@@ -603,9 +603,9 @@ checksum = "c7cb5678e1615754284ec264d9bb5b4c27d2018577fd90ac0ceb578591ed5ee4"
 
 [[package]]
 name = "snafu"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1ec0ae2ed980f26e1ad62e717feb01df90731df56887b5391a2c79f9f6805be"
+checksum = "c7f5aed652511f5c9123cf2afbe9c244c29db6effa2abb05c866e965c82405ce"
 dependencies = [
  "doc-comment",
  "snafu-derive",
@@ -613,9 +613,9 @@ dependencies = [
 
 [[package]]
 name = "snafu-derive"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ec32ba84a7a86aeb0bc32fd0c46d31b0285599f68ea72e87eff6127889d99e1"
+checksum = "ebf8f7d5720104a9df0f7076a8682024e958bba0fe9848767bb44f251f3648e9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -660,9 +660,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.18"
+version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "410a7488c0a728c7ceb4ad59b9567eb4053d02e8cc7f5c0e0eeeb39518369213"
+checksum = "dd1b5e337360b1fae433c59fcafa0c6b77c605e92540afa5221a7b81a9eca91d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -741,15 +741,14 @@ dependencies = [
 
 [[package]]
 name = "tui"
-version = "0.8.0"
+version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6b871b61f4c4b81e630215cd12e0ec29953d4545898e21a9e023b7520a74a9f9"
+checksum = "c25eac88406f384894aa6db56ac0378c767254ee5829824ce5b0fc8fd24d5778"
 dependencies = [
  "bitflags",
  "cassowary",
  "either",
  "itertools",
- "log",
  "termion",
  "unicode-segmentation",
  "unicode-width",

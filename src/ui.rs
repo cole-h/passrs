@@ -20,7 +20,7 @@ use termion::{color, style};
 use tui::backend::TermionBackend;
 use tui::layout::{Constraint, Direction, Layout};
 use tui::style::{Color, Modifier, Style};
-use tui::widgets::{Block, Borders, Paragraph, SelectableList, Text, Widget};
+use tui::widgets::{Block, Borders, List, ListState, Paragraph, Text};
 use tui::Terminal;
 
 use self::event::{Event, Events};
@@ -28,6 +28,9 @@ use crate::clipboard;
 use crate::consts::STORE_LEN;
 use crate::util;
 use crate::PassrsError;
+
+/// The amount of entries PageUp/PageDown moves the cursor by.
+const PAGE_LEN: usize = 10;
 
 #[derive(Debug)]
 pub enum UiResult {
@@ -41,7 +44,7 @@ pub enum UiResult {
 #[derive(Debug, Default)]
 struct Ui {
     entries: Vec<String>,
-    selected: Option<usize>,
+    state: ListState,
 }
 
 impl Ui {
@@ -60,10 +63,10 @@ impl Ui {
             })
             .collect();
 
-        Ui {
-            entries,
-            selected: Some(0),
-        }
+        let mut state = ListState::default();
+        state.select(Some(0));
+
+        Ui { entries, state }
     }
 }
 
@@ -87,6 +90,7 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
 
     let mut app = Ui::new(matches.clone());
     let mut entry = None;
+    let max = app.entries.len() - 1;
     let events = Events::new();
 
     let stdout = io::stdout().into_raw_mode()?;
@@ -114,61 +118,58 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
                         Constraint::Length(3), // number of cells
                         Constraint::Percentage(50),
                     ]
-                    .as_ref(),
+                        .as_ref(),
                 )
                 .split(size);
 
-            Paragraph::new(
-                [Text::raw(format!(
-                    "Found {} matching secrets. Please select an entry.",
-                    app.entries.len()
-                ))]
-                .iter(),
-            )
-            .block(
-                Block::default()
-                    .title(binary_name)
-                    .title_style(Style::default().fg(Color::Red))
-                    .borders(Borders::ALL),
-            )
-            .wrap(true)
-            .render(&mut frame, chunks[0]);
-            SelectableList::default()
+            let heading = [Text::raw(format!(
+                "Found {} matching secrets. Please select an entry.",
+                max + 1
+            ))];
+            let entries = app.entries.iter().map(Text::raw);
+            let directions = [
+                Text::raw("<↑/↓> to change the selection, <→> to show, <←> to copy, <e> to edit, <ESC> or <q> to quit")
+            ];
+
+            let header = Paragraph::new(heading.iter())
+                .block(
+                    Block::default()
+                        .title(binary_name)
+                        .title_style(Style::default().fg(Color::Red))
+                        .borders(Borders::ALL),
+                )
+                .wrap(true);
+            let list = List::new(entries)
                 .block(Block::default().borders(Borders::NONE))
-                .items(&app.entries)
-                .select(app.selected)
                 .highlight_style(Style::default().fg(Color::Yellow).modifier(Modifier::BOLD))
-                .highlight_symbol(">")
-                .render(&mut frame, chunks[1]);
-            Paragraph::new(
-                [Text::raw(
-                    "<↑/↓> to change the selection, <→> to show, <←> to copy, <e> to edit, <ESC> or <q> to quit"
-                )]
-                .iter(),
-            )
-            .block(Block::default().borders(Borders::ALL))
-            .wrap(true)
-            .render(&mut frame, chunks[2]);
+                .highlight_symbol("> ");
+            let footer = Paragraph::new(directions.iter())
+                .block(Block::default().borders(Borders::ALL))
+                .wrap(true);
+
+            frame.render_widget(header, chunks[0]);
+            frame.render_stateful_widget(list, chunks[1], &mut app.state);
+            frame.render_widget(footer, chunks[2]);
         })?;
 
         match events.next()? {
             Event::Input(input) => match input {
                 Key::Char('q') | Key::Esc => break,
                 Key::Up => {
-                    app.selected = if let Some(selected) = app.selected {
+                    if let Some(selected) = app.state.selected() {
                         if selected > 0 {
-                            Some(selected - 1)
+                            app.state.select(Some(selected - 1));
                         } else {
-                            Some(selected)
+                            app.state.select(Some(selected));
                         }
                     } else {
-                        Some(0)
+                        app.state.select(Some(0));
                     }
                 }
                 Key::Left => {
-                    entry = app.selected;
+                    entry = app.state.selected();
 
-                    if let Some(entry) = app.selected {
+                    if let Some(entry) = app.state.selected() {
                         let entry = matches[entry].to_owned();
                         let contents = util::decrypt_file_into_strings(&entry)?;
 
@@ -178,51 +179,57 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
                     }
                 }
                 Key::Down => {
-                    app.selected = if let Some(selected) = app.selected {
-                        if selected >= app.entries.len() - 1 {
-                            Some(selected)
+                    if let Some(selected) = app.state.selected() {
+                        if selected >= max {
+                            app.state.select(Some(selected));
                         } else {
-                            Some(selected + 1)
+                            app.state.select(Some(selected + 1));
                         }
                     } else {
-                        Some(0)
+                        app.state.select(Some(0));
                     }
                 }
                 Key::Char('\n') | Key::Right => {
-                    entry = app.selected;
+                    entry = app.state.selected();
 
                     break;
                 }
                 Key::Char('e') => {
-                    entry = app.selected;
+                    entry = app.state.selected();
 
-                    if let Some(entry) = app.selected {
+                    if let Some(entry) = app.state.selected() {
                         let entry = matches[entry].to_owned();
 
                         return Ok(UiResult::SpawnEditor(entry));
                     }
                 }
                 Key::PageDown => {
-                    app.selected = if let Some(selected) = app.selected {
-                        if selected >= app.entries.len() - 1 {
-                            Some(selected)
+                    if let Some(selected) = app.state.selected() {
+                        if selected >= max || selected.saturating_add(PAGE_LEN) >= max {
+                            app.state.select(Some(max));
                         } else {
-                            Some(selected.saturating_add(10))
+                            app.state.select(Some(selected.saturating_add(PAGE_LEN)));
                         }
                     } else {
-                        Some(0)
+                        app.state.select(Some(0));
                     }
                 }
                 Key::PageUp => {
-                    app.selected = if let Some(selected) = app.selected {
+                    if let Some(selected) = app.state.selected() {
                         if selected > 0 {
-                            Some(selected.saturating_sub(10))
+                            app.state.select(Some(selected.saturating_sub(PAGE_LEN)));
                         } else {
-                            Some(selected)
+                            app.state.select(Some(selected));
                         }
                     } else {
-                        Some(0)
+                        app.state.select(Some(0));
                     }
+                }
+                Key::Home => {
+                    app.state.select(Some(0));
+                }
+                Key::End => {
+                    app.state.select(Some(max));
                 }
                 _ => {}
             },
