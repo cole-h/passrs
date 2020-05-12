@@ -2,16 +2,8 @@ name: CI
 
 on:
   pull_request:
-    paths:
-      - '**.rs'
-      - '**.toml'
-      - '.github/workflows/ci.yml'
   push:
     branches: [master]
-    paths:
-      - '**.rs'
-      - '**.toml'
-      - '.github/workflows/ci.yml'
 jobs:
   format:
     runs-on: ubuntu-latest
@@ -44,11 +36,6 @@ jobs:
       - uses: cachix/install-nix-action@v8
       - name: Run tests
         run: nix-build -E 'import ./default.nix { doCheck = true; release = false; }'
-        env:
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 0
-          RUSTFLAGS: "-C debuginfo=0"
-          # PASSWORD_STORE_DIR: ${{ github.workspace }}/tests/test_repo
 
   build:
     runs-on: ubuntu-latest
@@ -57,7 +44,3 @@ jobs:
       - uses: cachix/install-nix-action@v8
       - name: Run build
         run: nix-build
-        env:
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 0
-          RUSTFLAGS: "-C debuginfo=0"

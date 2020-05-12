@@ -32,6 +32,8 @@ naersk.buildPackage {
   inherit doCheck;
   inherit release;
 
+  cargoTestOptions = opts: opts ++ [ "--" "--include-ignored" "-Z unstable-options" ];
+
   # NOTE: Completions require the gpg2 binary to be in path in order to complete
   # keys for commands like `passrs init`
   postInstall = ''

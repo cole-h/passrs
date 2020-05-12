@@ -73,6 +73,7 @@ fn find_matches() {
 }
 
 #[test]
+#[ignore] // Don't spawn gpg-agent
 fn decrypt_file_into_bytes() {
     test_setup();
 
@@ -83,6 +84,7 @@ fn decrypt_file_into_bytes() {
 }
 
 #[test]
+#[ignore] // Don't spawn gpg-agent
 fn decrypt_file_into_strings() {
     test_setup();
 
