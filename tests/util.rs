@@ -88,8 +88,9 @@ fn find_matches() {
     test_setup();
 
     assert!(util::find_matches(".").unwrap().len() > 0);
-    assert!(util::find_matches("a").unwrap().len() == 2);
+    assert!(util::find_matches("a").unwrap().len() == 1);
     assert!(util::find_matches("A").unwrap().len() == 1);
+    assert!(util::find_matches("x").unwrap().len() == 2);
     assert!(util::find_matches("z").is_err());
 }
 
