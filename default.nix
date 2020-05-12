@@ -14,7 +14,7 @@ naersk.buildPackage {
 
   src = builtins.filterSource
     (path: type: type != "directory" || builtins.baseNameOf path != "target")
-    ./.;
+    (toString ./.);
 
   nativeBuildInputs = with pkgs; [
     git # for build script to retrieve git hash and add to version info
@@ -30,15 +30,6 @@ naersk.buildPackage {
   ];
 
   inherit doCheck;
-
-  checkInputs = with pkgs; [
-    gnupg
-  ];
-
-  preCheck = ''
-    export GNUPGHOME=$(mktemp -d)
-  '';
-
   inherit release;
 
   # NOTE: Completions require the gpg2 binary to be in path in order to complete

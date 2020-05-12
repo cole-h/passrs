@@ -1,35 +1,13 @@
 use std::env;
-use std::io::Write;
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 
 use passrs::consts;
 use passrs::util;
 
 fn test_setup() {
-    println!("Importing test key");
-    Command::new("gpg")
-        .args(&["--import", "./tests/passrs@testuser.secret.asc"])
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("failed to spawn gpg to import secret key");
-
-    println!("Trusting test key");
-    Command::new("gpg")
-        .arg("--import-ownertrust")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("failed to spawn gpg to import ownertrust")
-        .stdin
-        .expect("stdin wasn't captured")
-        .write_all(b"4B0D9BBAC5C8329C035B125CF6EF0D39C5F84192:6:\n")
-        .expect("failed to write to stdin");
-
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("PASSWORD_STORE_DIR", "./tests/test_repo");
+    env::set_var("GNUPGHOME", "./tests/gnupg");
 }
 
 #[test]

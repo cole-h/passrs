@@ -151,8 +151,7 @@ where
             .with_context(|| "Path couldn't be converted to str")?;
 
         if path.ends_with(".gpg")
-            && (filename == &target.to_owned()
-                || filename[..filename.len() - 4] == target.to_owned())
+            && (filename == &target || target == &filename[..filename.len() - 4])
         {
             return Ok(vec![path.to_owned()]);
         }
