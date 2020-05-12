@@ -35,7 +35,7 @@ jobs:
       - name: Install GPG libs
         run: sudo apt-get install libgpg-error-dev libgpgme-dev
       - name: Check clippy
-        run: cargo +nightly clippy --all-features
+        run: cargo +nightly clippy --all-features -- -D warnings
 
   test:
     runs-on: ubuntu-latest
