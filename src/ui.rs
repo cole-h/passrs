@@ -33,12 +33,11 @@ use crate::PassrsError;
 const PAGE_LEN: usize = 10;
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum UiResult {
     Success(String),
     CopiedToClipboard(String),
     SpawnEditor(String),
-    #[doc(hidden)]
-    __Nonexhaustive,
 }
 
 #[derive(Debug, Default)]

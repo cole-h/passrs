@@ -79,7 +79,6 @@ pub(crate) fn show(secret_name: String, clip: Option<Option<usize>>) -> Result<(
 
             edit::edit(&file)?;
         }
-        _ => {}
     }
 
     Ok(())
