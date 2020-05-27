@@ -9,16 +9,16 @@ use crate::PassrsError;
 const SCHEME: &str = "otpauth://";
 const OTP_TYPE: &str = "(?P<type>totp|hotp)/";
 const LABEL: &str = "(?P<label>[^?#]*)";
-const SECRET: &str = "(?:\\?secret=(?P<secret>[^&]*))";
-const ISSUER: &str = "(?:&issuer=(?P<issuer>[^&#]*))?";
-const ALGORITHM: &str = "(?:&algorithm=(?P<algorithm>[^&#]*))?";
-const DIGITS: &str = "(?:&digits=(?P<digits>[^&#]*))?";
-const PERIOD: &str = "(?:&period=(?P<period>[^&#]*))?";
+const SECRET: &str = "(?:[?&]secret=(?P<secret>[^&]*))";
+const ISSUER: &str = "(?:[?&]issuer=(?P<issuer>[^&#]*))?";
+const ALGORITHM: &str = "(?:[?&]algorithm=(?P<algorithm>[^&#]*))?";
+const DIGITS: &str = "(?:[?&]digits=(?P<digits>[^&#]*))?";
+const PERIOD: &str = "(?:[?&]period=(?P<period>[^&#]*))?";
 
 static URI_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         &[
-            SCHEME, OTP_TYPE, LABEL, SECRET, ISSUER, ALGORITHM, DIGITS, PERIOD,
+            SCHEME, OTP_TYPE, LABEL, ISSUER, ALGORITHM, DIGITS, PERIOD, SECRET,
         ]
         .concat(),
     )
