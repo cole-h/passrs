@@ -4,7 +4,6 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use anyhow::{Context as _, Result};
 use git2::{Commit, Oid, Repository, Signature};
 use gpgme::{Context, Protocol};
 
@@ -13,7 +12,7 @@ use crate::consts::{
     STORE_LEN, STORE_STRING,
 };
 use crate::util;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 pub(crate) fn init(keys: Vec<String>, path: Option<String>) -> Result<()> {
     let store = &*PASSWORD_STORE_DIR;
@@ -76,7 +75,7 @@ pub(crate) fn init(keys: Vec<String>, path: Option<String>) -> Result<()> {
                     &new_keys,
                 ),
             )
-            .with_context(|| "Failed to commit re-encrypting substore")?;
+            .map_err(|e| format!("Failed to commit re-encrypting substore: {}", e))?;
         }
     } else {
         util::recrypt_dir(&store, Some(keys))?;
@@ -89,7 +88,7 @@ pub(crate) fn init(keys: Vec<String>, path: Option<String>) -> Result<()> {
             None::<&[PathBuf]>,
             format!("Re-encrypt password store using new GPG ID {}", &new_keys),
         )
-        .with_context(|| "Failed to commit re-encrypted store")?;
+        .map_err(|e| format!("Failed to commit re-encrypted store: {}", e))?;
     }
 
     Ok(())
@@ -140,7 +139,7 @@ where
 
         for key in signing_keys {
             ctx.add_signer(&key)
-                .with_context(|| format!("Failed to add key {:?} as signer", key.id()))?;
+                .map_err(|e| format!("Failed to add key {:?} as signer: {}", key.id(), e))?;
         }
 
         ctx.sign_detached(gpg_ids.join("\n").as_bytes(), &mut outbuf)?;
@@ -163,7 +162,7 @@ where
             let email = secret_key
                 .user_ids()
                 .next()
-                .with_context(|| "Option did not contain a value.")?
+                .ok_or("Secret key didn't have any user IDs")?
                 .email();
             let user_id = match email {
                 Ok(email) => email.to_owned(),

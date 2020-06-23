@@ -3,7 +3,6 @@ use std::io::{self, Write};
 use std::os::unix::fs::OpenOptionsExt;
 use std::str;
 
-use anyhow::Result;
 use termion::color;
 use termion::style;
 
@@ -14,8 +13,7 @@ use crate::consts::{
 };
 use crate::util;
 use crate::util::EditMode;
-use crate::Flags;
-use crate::PassrsError;
+use crate::{Flags, PassrsError, Result};
 
 pub(crate) fn generate(secret_name: String, length: Option<usize>, flags: Flags) -> Result<()> {
     let clip = flags.clip;

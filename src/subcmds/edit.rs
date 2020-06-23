@@ -6,14 +6,13 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::str;
 
-use anyhow::{Context, Result};
 use data_encoding::HEXLOWER;
 use ring::digest;
 
 use crate::consts::{EDITOR, PASSWORD_STORE_CHARACTER_SET_NO_SYMBOLS, PASSWORD_STORE_UMASK};
 use crate::util;
 use crate::util::EditMode;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 pub(crate) fn edit<S>(secret_name: S) -> Result<()>
 where
@@ -74,7 +73,7 @@ where
         fs::remove_dir(
             PathBuf::from(&temp_path)
                 .parent()
-                .with_context(|| "Path did not contain a parent")?,
+                .ok_or("Path did not contain a parent")?,
         )?;
 
         return Err(PassrsError::UserAbort.into());
@@ -84,7 +83,7 @@ where
         fs::remove_dir(
             PathBuf::from(&temp_path)
                 .parent()
-                .with_context(|| "Path did not contain a parent")?,
+                .ok_or("Path did not contain a parent")?,
         )?;
 
         return Err(PassrsError::ContentsUnchanged.into());
@@ -102,7 +101,7 @@ where
     fs::remove_dir(
         PathBuf::from(&temp_path)
             .parent()
-            .with_context(|| "Path did not contain a parent")?,
+            .ok_or("Path did not contain a parent")?,
     )?;
 
     Ok(())
@@ -135,7 +134,7 @@ where
         },
         exe = env::current_exe()?
             .file_name()
-            .with_context(|| "Current executable doesn't have a filename...?")?
+            .ok_or("Current executable's path ends in `..`")?
             .to_string_lossy(),
         folder = str::from_utf8(&folder)?,
         file = str::from_utf8(&file)?,

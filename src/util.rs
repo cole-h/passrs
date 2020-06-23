@@ -11,7 +11,6 @@ use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::str;
 
-use anyhow::{Context as _, Result};
 use git2::{Commit, Repository};
 use gpgme::{Context, Data, Protocol};
 use ring::rand;
@@ -22,7 +21,7 @@ use crate::consts::{
     GPG_ID_FILE, HOME, PASSWORD_STORE_DIR, PASSWORD_STORE_KEY, PASSWORD_STORE_UMASK, STORE_LEN,
     STORE_STRING,
 };
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 /// Helper function to return the path to the specified entry. Paths may be an
 /// absolute path to the entry, or relative to the store's root.
@@ -144,11 +143,11 @@ where
         let filename = &entry
             .file_name()
             .to_str()
-            .with_context(|| "Filename couldn't be converted to str")?;
+            .ok_or("Filename couldn't be converted to str")?;
         let path = entry
             .path()
             .to_str()
-            .with_context(|| "Path couldn't be converted to str")?;
+            .ok_or("Path couldn't be converted to str")?;
 
         if path.ends_with(".gpg")
             && (filename == &target || target == &filename[..filename.len() - 4])
@@ -248,7 +247,7 @@ where
     let mut ctx = Context::from_protocol(Protocol::OpenPgp)?;
     let id_file = match self::find_gpg_id(
         path.parent()
-            .with_context(|| format!("{} didn't have a parent", path.display()))?,
+            .ok_or(format!("Path '{}' didn't have a parent", path.display()))?,
     ) {
         Ok(gpgid) => fs::OpenOptions::new().read(true).open(&gpgid)?,
         Err(_) => fs::OpenOptions::new().read(true).open(&*GPG_ID_FILE)?,
@@ -318,7 +317,7 @@ where
 
     let dir = path
         .parent()
-        .with_context(|| format!("Path '{}' had no parent", path.display()))?;
+        .ok_or(format!("Path '{}' had no parent", path.display()))?;
 
     fs::create_dir_all(dir)?;
     self::set_permissions_recursive(&path)?;
@@ -388,25 +387,25 @@ where
 
     if path.is_dir() {
         let mut perms = fs::metadata(&path)
-            .with_context(|| format!("Path {} does not exist", path.display()))?
+            .map_err(|_| format!("Path {} does not exist", path.display()))?
             .permissions();
         perms.set_mode(perms.mode() - (perms.mode() & *PASSWORD_STORE_UMASK));
 
         fs::set_permissions(&path, perms)
-            .with_context(|| format!("Failed to set permissions for '{}'", path.display()))?;
+            .map_err(|_| format!("Failed to set permissions for '{}'", path.display()))?;
 
         if path == *PASSWORD_STORE_DIR {
             return Ok(());
         } else {
             self::set_permissions_recursive(
                 path.parent()
-                    .with_context(|| format!("Path '{}' had no parent", path.display()))?,
+                    .ok_or(format!("Path '{}' had no parent", path.display()))?,
             )?;
         }
     } else {
         self::set_permissions_recursive(
             path.parent()
-                .with_context(|| format!("Path '{}' had no parent", path.display()))?,
+                .ok_or(format!("Path '{}' had no parent", path.display()))?,
         )?;
     }
 
@@ -514,7 +513,7 @@ where
             ctx.set_armor(true);
             ctx.sign_detached(&*buf, &mut outbuf)?;
 
-            let contents = buf.as_str().with_context(|| "Buffer was not valid UTF-8")?;
+            let contents = buf.as_str().ok_or("Buffer was not valid UTF-8")?;
             let out = str::from_utf8(&outbuf)?;
 
             repo.commit_signed(&contents, &out, Some("gpgsig"))?
@@ -562,7 +561,7 @@ where
         write!(
             io::stdout(),
             "{}",
-            str::from_utf8(&*buf).with_context(|| "diffstats should be valid utf8")?
+            str::from_utf8(&*buf).map_err(|e| format!("diffstats should be valid utf8: {}", e))?
         )?;
 
         for entry in statuses
@@ -579,12 +578,12 @@ where
             };
             let old_path = entry
                 .head_to_index()
-                .with_context(|| "couldn't get differences between HEAD and index")?
+                .ok_or("couldn't get differences between HEAD and index")?
                 .old_file()
                 .path();
             let new_path = entry
                 .head_to_index()
-                .with_context(|| "couldn't get differences between HEAD and index")?
+                .ok_or("couldn't get differences between HEAD and index")?
                 .new_file()
                 .path();
 
@@ -615,9 +614,7 @@ where
                     )?;
                 }
                 (old, new) => {
-                    let path = old
-                        .or(new)
-                        .with_context(|| "neither old nor new were valid paths")?;
+                    let path = old.or(new).ok_or("neither old nor new were valid paths")?;
                     let tree = repo.find_tree(tree_id)?;
                     let file = tree.iter().find(|e| e.name() == path.to_str());
                     let mode = match file {
@@ -890,8 +887,7 @@ where
 {
     let path = path.as_ref();
     let path = if path.is_file() {
-        path.parent()
-            .with_context(|| "file's parent doesn't exist")?
+        path.parent().ok_or("file's parent doesn't exist")?
     } else {
         path
     };
@@ -902,10 +898,7 @@ where
 
     match self::find_gpg_id(&path) {
         Ok(gpgid) => Ok(gpgid),
-        Err(_) => self::get_closest_gpg_id(
-            path.parent()
-                .with_context(|| "path's parent doesn't exist")?,
-        ),
+        Err(_) => self::get_closest_gpg_id(path.parent().ok_or("path's parent doesn't exist")?),
     }
 }
 
@@ -987,7 +980,7 @@ where
             let entry = entry?.path();
             let name = entry
                 .file_name()
-                .with_context(|| "Entry did not contain valid filename")?;
+                .ok_or("Entry did not contain valid filename")?;
             self::copy_impl(&entry, &dest.join(name), root)?;
         }
 

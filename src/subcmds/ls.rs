@@ -1,10 +1,8 @@
 use std::path::PathBuf;
 
-use anyhow::Result;
-
 use crate::consts::STORE_STRING;
 use crate::tree;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 pub(crate) fn ls(path: Option<String>) -> Result<()> {
     let root = if let Some(path) = path {

@@ -13,12 +13,11 @@ use std::process::{Command, Stdio};
 use std::thread;
 use std::time;
 
-use anyhow::{Context, Result};
 use data_encoding::HEXLOWER;
 use ring::digest;
 
 use crate::consts::{PASSWORD_STORE_CLIP_TIME, PASSWORD_STORE_X_SELECTION};
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 /// Copies the `contents` to the clipboard, optionally `force`fully.
 ///
@@ -34,18 +33,18 @@ where
             .arg("--trim-newline")
             .stdin(Stdio::piped())
             .spawn()
-            .with_context(|| "Failed to spawn wl-copy")?
+            .map_err(|e| format!("Failed to spawn wl-copy: {}", e))?
             .stdin
-            .with_context(|| "stdin wasn't captured")?
+            .ok_or("stdin wasn't captured")?
             .write_all(contents)?;
     } else if env::var("DISPLAY").is_ok() {
         Command::new("xclip")
             .args(&["-in", "-selection", &PASSWORD_STORE_X_SELECTION])
             .stdin(Stdio::piped())
             .spawn()
-            .with_context(|| "Failed to spawn xclip")?
+            .map_err(|e| format!("Failed to spawn xclip: {}", e))?
             .stdin
-            .with_context(|| "stdin wasn't captured")?
+            .ok_or("stdin wasn't captured")?
             .write_all(contents)?;
     } else {
         return Err(PassrsError::ClipFailed.into());
@@ -77,13 +76,13 @@ pub fn paste() -> Result<Vec<u8>> {
         Command::new("wl-paste")
             .arg("--no-newline")
             .output()
-            .with_context(|| "Failed to spawn wl-paste")?
+            .map_err(|e| format!("Failed to spawn wl-paste: {}", e))?
             .stdout
     } else if env::var("DISPLAY").is_ok() {
         Command::new("xclip")
             .args(&["-out", "-selection", &PASSWORD_STORE_X_SELECTION])
             .output()
-            .with_context(|| "Failed to spawn xclip")?
+            .map_err(|e| format!("Failed to spawn xclip: {}", e))?
             .stdout
     } else {
         return Err(PassrsError::PasteFailed.into());
@@ -101,9 +100,9 @@ pub fn clear() -> Result<()> {
             .args(&["-in", "-selection", &PASSWORD_STORE_X_SELECTION])
             .stdin(Stdio::piped())
             .spawn()
-            .with_context(|| "Failed to spawn xclip")?
+            .map_err(|e| format!("Failed to spawn xclip: {}", e))?
             .stdin
-            .with_context(|| "stdin wasn't captured")?
+            .ok_or("stdin wasn't captured")?
             .write_all(b"")?;
     } else {
         // unsupported system

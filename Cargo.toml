@@ -22,7 +22,6 @@ path = "src/main.rs"
 doctest = false
 
 [dependencies]
-anyhow = "1.0.28"
 clap = { version = "3.0.0-beta.1", default-features = false, features = ["std", "cargo", "derive"] }
 data-encoding = "2.2.0"
 git2 = { version = "0.13.1", default-features = false }
@@ -36,7 +35,6 @@ psutil = { version = "3.0.1", default-features = false, features = [ "process" ]
 ring = { version = "0.16.12", default-features = false }
 termcolor = "1.1.0"
 termion = "1.5.5"
-thiserror = "1.0.14"
 tui = "0.9.3"
 walkdir = "2.3.1"
 

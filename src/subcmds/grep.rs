@@ -1,6 +1,5 @@
 use std::io;
 
-use anyhow::{Context, Result};
 use grep_printer::{ColorSpecs, StandardBuilder};
 use grep_regex::RegexMatcher;
 use grep_searcher::{BinaryDetection, SearcherBuilder};
@@ -10,6 +9,7 @@ use walkdir::WalkDir;
 
 use crate::consts::{PASSWORD_STORE_DIR, STORE_LEN};
 use crate::util;
+use crate::Result;
 
 // Takes ~40 seconds to search the entirety of my ~400 file store
 pub(crate) fn grep(search: String) -> Result<()> {
@@ -45,17 +45,14 @@ pub(crate) fn grep(search: String) -> Result<()> {
         let path = entry
             .path()
             .to_str()
-            .with_context(|| "Entry did not contain a valid path")?;
+            .ok_or("Entry did not contain a valid path")?;
 
         if !entry.file_type().is_file() || !path.ends_with(".gpg") {
             continue;
         }
 
         // I want path[..separator] to include the final slash, so add 1
-        let separator = path
-            .rfind('/')
-            .with_context(|| "Path did not contain a folder")?
-            + 1;
+        let separator = path.rfind('/').ok_or("Path did not contain a folder")? + 1;
         let pre = &path[*STORE_LEN..separator];
         // We guarantee all paths end in .gpg by this point, so we can cut it
         // off without a problem (famous last words)

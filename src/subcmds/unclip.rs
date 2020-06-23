@@ -4,14 +4,13 @@ use std::str;
 use std::thread;
 use std::time;
 
-use anyhow::Result;
 use data_encoding::HEXLOWER;
 use psutil::process;
 use ring::digest;
 
 use crate::clipboard;
 use crate::consts::PASSRS_UNCLIP_HASH;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 pub(crate) fn unclip(timeout: u32, force: bool) -> Result<()> {
     if PASSRS_UNCLIP_HASH.is_empty() {

@@ -1,6 +1,5 @@
 use std::io::{self, Write};
 
-use anyhow::{Context, Result};
 use termion::color;
 use termion::style;
 
@@ -9,6 +8,7 @@ use crate::consts::{PASSWORD_STORE_CLIP_TIME, STORE_LEN};
 use crate::ui;
 use crate::ui::UiResult;
 use crate::util;
+use crate::Result;
 
 use super::edit;
 
@@ -24,8 +24,8 @@ pub(crate) fn show(secret_name: String, clip: Option<Option<usize>>) -> Result<(
                     let contents = match clip {
                         Some(line) => password
                             .get(line.saturating_sub(1))
-                            .with_context(|| format!("File at line {} was empty", line))?,
-                        None => password.first().with_context(|| "Vec was empty")?,
+                            .ok_or(format!("File at line {} was empty", line))?,
+                        None => password.first().ok_or("Vec was empty")?,
                     };
 
                     clipboard::clip(contents, false)?;

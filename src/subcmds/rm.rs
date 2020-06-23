@@ -2,12 +2,10 @@ use std::fs;
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 
-use anyhow::Result;
-
 use crate::consts::PASSWORD_STORE_UMASK;
 use crate::util;
 use crate::Flags;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 pub(crate) fn rm(secret_name: String, flags: Flags) -> Result<()> {
     let recursive = flags.recursive;

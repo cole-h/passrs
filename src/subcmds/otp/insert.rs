@@ -1,11 +1,9 @@
 use std::fs;
 use std::os::unix::fs::OpenOptionsExt;
 
-use anyhow::Result;
-
 use crate::consts::PASSWORD_STORE_UMASK;
 use crate::util::{self, EditMode};
-use crate::{Flags, PassrsError};
+use crate::{Flags, PassrsError, Result};
 
 use super::{code, validate};
 
