@@ -1,13 +1,12 @@
 use std::fmt;
 use std::io::{self, Write};
 
-use anyhow::Result;
 use qrcode::QrCode;
 
 use crate::consts::STORE_LEN;
 use crate::ui::{self, UiResult};
 use crate::{clipboard, util};
-use crate::{Flags, PassrsError};
+use crate::{Flags, PassrsError, Result};
 
 use super::validate;
 

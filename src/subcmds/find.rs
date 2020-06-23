@@ -1,12 +1,11 @@
 use std::io::{self, Write};
 
-use anyhow::{Context, Result};
 use termion::color;
 use termion::style;
 
 use crate::consts::STORE_LEN;
 use crate::util;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 pub(crate) fn find(name: String) -> Result<()> {
     let matches = util::find_matches(&name)?;
@@ -17,10 +16,7 @@ pub(crate) fn find(name: String) -> Result<()> {
 
     if !matches.is_empty() {
         for matched in &matches {
-            let separator = matched
-                .rfind('/')
-                .with_context(|| "Path did not contain a folder")?
-                + 1;
+            let separator = matched.rfind('/').ok_or("Path did not contain a folder")? + 1;
             let pre = &matched[*STORE_LEN..separator];
             let file = &matched[separator..matched.rfind(".gpg").unwrap()];
             let formatted_path = format!(

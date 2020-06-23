@@ -1,10 +1,9 @@
-use anyhow::{Context, Result};
 use data_encoding::BASE32_NOPAD;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
 use crate::otp::HashAlgorithm;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 const SCHEME: &str = "otpauth://";
 const OTP_TYPE: &str = "(?P<type>totp|hotp)/";
@@ -51,13 +50,11 @@ where
 {
     let uri = uri.as_ref();
     let re = &URI_REGEX;
-    let captures = re
-        .captures(&uri)
-        .with_context(|| "Failed to get regex captures")?;
+    let captures = re.captures(&uri).ok_or("Failed to get regex captures")?;
 
     let secret = captures
         .name("secret")
-        .with_context(|| "Failed to get secret from regex")?
+        .ok_or("Failed to get secret from regex")?
         .as_str()
         .to_owned();
 
@@ -70,9 +67,7 @@ where
 {
     let uri = uri.as_ref();
     let re = &URI_REGEX;
-    let captures = re
-        .captures(&uri)
-        .with_context(|| "Failed to get regex captures")?;
+    let captures = re.captures(&uri).ok_or("Failed to get regex captures")?;
 
     let period = match captures.name("period") {
         Some(num) => num.as_str().parse::<u64>()?,
@@ -88,9 +83,7 @@ where
 {
     let uri = uri.as_ref();
     let re = &URI_REGEX;
-    let captures = re
-        .captures(&uri)
-        .with_context(|| "Failed to get regex captures")?;
+    let captures = re.captures(&uri).ok_or("Failed to get regex captures")?;
 
     let digits = match captures.name("digits") {
         Some(num) => num.as_str().parse::<usize>()?,
@@ -106,9 +99,7 @@ where
 {
     let uri = uri.as_ref();
     let re = &URI_REGEX;
-    let captures = re
-        .captures(&uri)
-        .with_context(|| "Failed to get regex captures")?;
+    let captures = re.captures(&uri).ok_or("Failed to get regex captures")?;
 
     let algo = match captures.name("algorithm") {
         Some(algo) => match algo.as_str().to_ascii_lowercase().as_ref() {

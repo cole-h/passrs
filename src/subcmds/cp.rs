@@ -1,11 +1,9 @@
 use std::fs;
 use std::os::unix::fs::OpenOptionsExt;
 
-use anyhow::Result;
-
 use crate::consts::PASSWORD_STORE_UMASK;
 use crate::util;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 pub(crate) fn cp(source: String, dest: String, force: bool) -> Result<()> {
     let source_path = util::canonicalize_path(&source)?;

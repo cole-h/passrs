@@ -1,13 +1,11 @@
 use std::fs;
 use std::os::unix::fs::OpenOptionsExt;
 
-use anyhow::Result;
-
 use crate::consts::PASSWORD_STORE_UMASK;
 use crate::util;
 use crate::util::EditMode;
 use crate::Flags;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 pub(crate) fn insert(secret_name: String, flags: Flags) -> Result<()> {
     let echo = flags.echo;

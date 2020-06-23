@@ -59,4 +59,4 @@ pub mod ui;
 pub mod util;
 
 use cli::Flags;
-use error::PassrsError;
+use error::{PassrsError, Result};

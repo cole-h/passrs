@@ -1,9 +1,7 @@
 use std::path::PathBuf;
 
-use anyhow::Result;
-
 use crate::util::{self, EditMode};
-use crate::Flags;
+use crate::{Flags, Result};
 
 use super::{code, validate};
 

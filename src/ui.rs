@@ -11,7 +11,6 @@
 use std::env;
 use std::io::{self, Write};
 
-use anyhow::{Context, Result};
 use termion::event::Key;
 use termion::input::MouseTerminal;
 use termion::raw::IntoRawMode;
@@ -27,7 +26,7 @@ use self::event::{Event, Events};
 use crate::clipboard;
 use crate::consts::STORE_LEN;
 use crate::util;
-use crate::PassrsError;
+use crate::{PassrsError, Result};
 
 /// The amount of entries PageUp/PageDown moves the cursor by.
 const PAGE_LEN: usize = 10;
@@ -83,9 +82,9 @@ fn display_matches(matches: Vec<String>) -> Result<UiResult> {
     let bin_path = env::current_exe()?;
     let binary_name = bin_path
         .file_name()
-        .with_context(|| "Option did not contain a value.")?
+        .ok_or("Binary path ends in `..`")?
         .to_str()
-        .with_context(|| "Option did not contain a value.")?;
+        .ok_or("Filename was invalid unicode")?;
 
     let mut app = Ui::new(matches.clone());
     let mut entry = None;

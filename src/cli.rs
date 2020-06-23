@@ -6,11 +6,11 @@
 
 use std::io::{self, Write};
 
-use anyhow::{anyhow, Result};
 use clap::{AppSettings, Clap, IntoApp};
 
 use crate::subcmds::{cp, edit, find, generate, git, grep, init, insert, ls, mv, rm, show, unclip};
 use crate::util;
+use crate::Result;
 
 #[derive(Clap, Debug)]
 #[clap(
@@ -450,7 +450,7 @@ pub fn opt() -> Result<()> {
             Err(_) => {
                 Pass::into_app()
                     .print_help()
-                    .map_err(|e| anyhow!("Failed to display help: {:?}", e))?;
+                    .map_err(|e| format!("Failed to display help: {:?}", e))?;
 
                 std::process::exit(1);
             }
