@@ -23,7 +23,7 @@ doctest = false
 
 [dependencies]
 anyhow = "1.0.28"
-clap = { git = "https://github.com/clap-rs/clap/", rev = "93dd22c", default-features = false, features = ["std", "cargo", "derive"] }
+clap = { version = "3.0.0-beta.1", default-features = false, features = ["std", "cargo", "derive"] }
 data-encoding = "2.2.0"
 git2 = { version = "0.13.1", default-features = false }
 gpgme = "0.9.2"
