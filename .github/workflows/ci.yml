@@ -13,7 +13,7 @@ jobs:
       with:
         rust-version: nightly
         components: rustfmt
-    - name: Check rustfmt
+    - name: Check nightly rustfmt
       run: cargo +nightly fmt -- --check
 
   lint:
@@ -26,14 +26,18 @@ jobs:
           components: clippy
       - name: Install GPG libs
         run: sudo apt-get install libgpg-error-dev libgpgme-dev
-      - name: Check clippy
+      - name: Check nightly clippy
         run: cargo +nightly clippy --all-features -- -D warnings
 
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: cachix/install-nix-action@v8
+        with:
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@v10
+        with:
+            skip_adding_nixpkgs_channel: true
       - name: Run tests
         run: nix-build -E 'import ./default.nix { doCheck = true; release = false; }'
 
@@ -41,6 +45,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: cachix/install-nix-action@v8
+        with:
+          fetch-depth: 0
+      - uses: cachix/install-nix-action@v10
+        with:
+            skip_adding_nixpkgs_channel: true
       - name: Run build
         run: nix-build
