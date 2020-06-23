@@ -120,7 +120,7 @@ where
     let path = format!(
         "{dir}/{exe}.{folder}/{file}-{path}.txt",
         dir = if PathBuf::from("/dev/shm").metadata().is_ok() {
-            "/dev/shm"
+            String::from("/dev/shm")
         } else {
             let prompt = "Your system does not have /dev/shm, which means that it may\n\
                  be difficult to securely erase the temporary non-encrypted\n\
@@ -131,7 +131,7 @@ where
                 return Err(PassrsError::UserAbort.into());
             }
 
-            "/tmp"
+            env::var("TMPDIR").unwrap_or_else(|_| String::from("/tmp"))
         },
         exe = env::current_exe()?
             .file_name()
