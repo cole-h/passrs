@@ -168,7 +168,7 @@ where
     if matches.is_empty() {
         Err(PassrsError::NoMatchesFound(target.to_owned()).into())
     } else {
-        matches.sort_by(|a, b| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()));
+        matches.sort_by_key(|a| a.to_ascii_lowercase());
 
         Ok(matches)
     }
