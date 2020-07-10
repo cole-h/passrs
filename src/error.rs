@@ -145,7 +145,7 @@ impl fmt::Display for PassrsError {
                 RED = RED,
                 RESET = RESET
             ),
-            ContentsUnchanged => write!(f, "Contents unchanged"), // don't color this one because it's just information
+            ContentsUnchanged => write!(f, "Contents unchanged"),
             PasteFailed => write!(
                 f,
                 "{RED}Error: Failed to get contents of clipboard{RESET}",
