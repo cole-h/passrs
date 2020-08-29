@@ -57,6 +57,4 @@ jobs:
       - name: Set up flakes
         run: echo "experimental-features = nix-command flakes" | sudo tee -a /etc/nix/nix.conf
       - name: Run build
-        run: nix build
-        env:
-          RUST_BACKTRACE: 1
+        run: nix build --log-format bar-with-logs

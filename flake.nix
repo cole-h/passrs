@@ -51,6 +51,8 @@
 
           src = ./.;
 
+          RUST_BACKTRACE = 1;
+
           inherit (deps pkgs) nativeBuildInputs buildInputs;
 
           inherit release doCheck;
