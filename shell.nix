@@ -1,10 +1,6 @@
-let
-  sources = import ./nix/sources.nix;
-  mozilla = import sources.nixpkgs-mozilla;
-  pkgs = import sources.nixpkgs { overlays = [ mozilla ]; };
-  lib = pkgs.lib;
-  deps = import ./default.nix { };
-in
-pkgs.mkShell {
-  inherit (deps) buildInputs nativeBuildInputs;
-}
+(import
+  (fetchTarball {
+    url = "https://github.com/edolstra/flake-compat/archive/c71d063a2fce96001c7ef99b301dfbd0c29ebde1.tar.gz";
+    sha256 = "0vnbhqf0lc4mf2zmzqbfv6kqj9raijxz8xfaimxihz3c6s5gma2x";
+  })
+  { src = ./.; }).shellNix
