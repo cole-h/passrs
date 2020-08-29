@@ -22,6 +22,7 @@
 
       deps = pkgs: with pkgs; {
         nativeBuildInputs = [
+          pkg-config
           git # for build script to retrieve git hash and add to version info
           gpgme # `gpgme-config` required by crate gpgme
           installShellFiles
@@ -44,13 +45,15 @@
         }:
         let
           inherit (pkgs.callPackage naersk { }) buildPackage;
+          version = self.shortRev or "dirty";
         in
         buildPackage {
           pname = "passrs";
-          version = "git";
+          inherit version;
 
           src = ./.;
 
+          PASSRS_REV = version;
           RUST_BACKTRACE = 1;
 
           inherit (deps pkgs) nativeBuildInputs buildInputs;
