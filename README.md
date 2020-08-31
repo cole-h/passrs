@@ -4,12 +4,12 @@
 
 ## Inspiration
 
-While `passrs` was inspired by [`gopass`](https://github.com/gopasspw/gopass/),
-it does not accomplish the same goals, nor does it try to. For example, you will
-not find the ability to specify recipients on a per-secret basis (this is only
-done on a store or substore basis, utilizing the keys stored in the `.gpg-id`
-file), it does not expose an API for use in browser extensions, and it does not
-support any cryptography protocol aside from OpenPGP.
+While [`gopass`](https://github.com/gopasspw/gopass/) inspired `passrs`, it does
+not accomplish the same goals, nor does it try to. For example, you will not
+find the ability to specify recipients on a per-secret basis (this is only done
+on a store or substore basis, utilizing the keys stored in the `.gpg-id` file),
+it does not expose an API for use in browser extensions, and it does not support
+any cryptography protocol aside from OpenPGP.
 
 ## Security
 
@@ -32,9 +32,9 @@ toolchain).
 
 ## Installation
 
-With that out of the way, let's get to the fun stuff. At the moment, only Linux
-systems are supported; however, more targets might come down the line, as I
-become more competent in Rust.
+With that out of the way, let's get to the fun stuff. At the moment, `passrs`
+only supports Linux systems; however, more targets might come down the line, as
+I become more competent in Rust.
 
 To install the `passrs` binary, run:
 
@@ -51,6 +51,18 @@ $ cargo install --git https://github.com/cole-h/passrs
     - `PASSWORD_STORE_GPG_OPTS`
     - `GREPOPTIONS`
 
+## Nix-specific
+
+### Cache
+
+Thanks to the wonderful people over at [Cachix], a cache serving pre-built
+`passrs` binaries is usable by adding `--extra-substituters
+'https://passrs.cachix.org' --trusted-public-keys
+'passrs.cachix.org-1:qEBRtLoyRFMZC8obhs0JjUW95PVaPYAUvixVPt6Qsa0='` to your Nix
+command (whether it be `nix build` or `nix-build`). This means you don't
+actually have to build `passrs` yourself -- the GitHub Actions runner already
+did it for you (with the caveat that it only runs on x86_64)!
+
 ## Licensing
 - This software is licensed under the [MIT License](./LICENSE-MIT)
 - Portions of this software are derived from [tui-rs](https://github.com/fdehau/tui-rs) examples, under the MIT
@@ -64,4 +76,5 @@ $ cargo install --git https://github.com/cole-h/passrs
 - Portions of this software are derived from the [terminal_qrcode](https://github.com/calum/terminal_qrcode) library, under
     the MIT license
 
+[Cachix]: https://cachix.org
 [a call to `libc::getuid()`]: https://github.com/cole-h/passrs/blob/dd04ee6c4e0cb977fbac3935db56779eb53d5f17/src/util.rs#L370
