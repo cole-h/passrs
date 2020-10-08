@@ -62,15 +62,13 @@
 
           cargoTestOptions = opts: opts ++ [ "--" "--include-ignored" "-Z unstable-options" ];
 
-          # NOTE: Completions require the gpg2 binary to be in path in order to complete
-          # keys for commands like `passrs init`
-          #
-          # `|| true` is necessary because postInstall is run for both the
-          # dependencies and the actual package.
-          # https://github.com/nmattia/naersk/issues/105
-          postInstall = ''
-            installShellCompletion --fish completions/passrs.fish || true
-          '';
+          overrideMain = { ... }: {
+            # NOTE: Completions require the gpg2 binary to be in path in order to complete
+            # keys for commands like `passrs init`
+            postInstall = ''
+              installShellCompletion completions/passrs.{fi,ba,z}sh
+            '';
+          };
         };
     in
     {
