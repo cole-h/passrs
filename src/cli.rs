@@ -144,9 +144,6 @@ pub(crate) enum PassSubcmd {
         /// Arguments to pass to the git binary.
         git_command_args: Vec<String>,
     },
-    #[cfg(feature = "otp")]
-    /// Manage TOTP secrets.
-    Otp(Otp),
     #[clap(setting = AppSettings::Hidden)]
     /// Clipboard daemon functionality.
     Unclip {
@@ -156,6 +153,9 @@ pub(crate) enum PassSubcmd {
         /// Clear clipboard even if the checksum doesn't match.
         force: bool,
     },
+    #[cfg(feature = "otp")]
+    /// Manage TOTP secrets.
+    Otp(Otp),
 }
 
 /// For managing one-time-password (OTP) tokens with passrs.
@@ -301,7 +301,6 @@ pub fn opt() -> Result<()> {
                 insert::insert(secret_name, flags)?;
             }
             PassSubcmd::Edit { secret_name } => {
-                util::ensure_stdout_is_tty()?;
                 util::verify_store_exists()?;
                 edit::edit(secret_name)?;
             }
