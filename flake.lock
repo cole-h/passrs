@@ -2,9 +2,7 @@
   "nodes": {
     "naersk": {
       "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
+        "nixpkgs": "nixpkgs"
       },
       "locked": {
         "lastModified": 1602173141,
@@ -22,11 +20,24 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1598686861,
-        "narHash": "sha256-3oiA42/x2Aoc168Q/Y4+ddapF0w8dU58p2LTFrrmj48=",
+        "lastModified": 1603153815,
+        "narHash": "sha256-uCav0CJ0Zm0vbqJiS9NUYD4XZg4Ww9bbsFzcDUzh2+U=",
+        "path": "/nix/store/1gw4hczsp0ir5xs0n8sddda3vzsn902r-source",
+        "rev": "007126eef72271480cb7670e19e501a1ad2c1ff2",
+        "type": "path"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "type": "indirect"
+      }
+    },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1603472399,
+        "narHash": "sha256-AWaqGxP/MlFO67rk9SFBaxR73D99i04X3r6dGoqzAyo=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "d1020bcb2e49eecbe8a36d13ef414e00bdb07151",
+        "rev": "3c96aceb3c4d86ccd785fde05c1c978541584dbb",
         "type": "github"
       },
       "original": {
@@ -39,7 +50,7 @@
     "root": {
       "inputs": {
         "naersk": "naersk",
-        "nixpkgs": "nixpkgs"
+        "nixpkgs": "nixpkgs_2"
       }
     }
   },

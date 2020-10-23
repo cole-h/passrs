@@ -3,7 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/master";
-    naersk = { url = "github:nmattia/naersk"; inputs.nixpkgs.follows = "nixpkgs"; };
+    naersk = { url = "github:nmattia/naersk"; };
   };
 
   outputs = { self, nixpkgs, naersk }:
