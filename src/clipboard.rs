@@ -59,7 +59,7 @@ where
 
     // Otherwise, the process doesn't live long enough to spawn the unclip
     // daemon
-    thread::sleep(time::Duration::from_millis(75));
+    thread::sleep(time::Duration::from_millis(100));
     Command::new(env::current_exe()?)
         .args(&args)
         .env("PASSRS_UNCLIP_HASH", hash)
