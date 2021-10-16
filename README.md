@@ -1,3 +1,9 @@
+# NOTICE
+
+This repo is now archived due to me no longer using pass. GPG is a pain to deal
+with, so I shall deal with it no longer. Feel free to fork and continue working
+on it, if you so choose.
+
 # passrs
 
 `passrs` is a reimplementation of [`pass`](https://passwordstore.org/) in Rust.
