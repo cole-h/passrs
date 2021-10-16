@@ -38,7 +38,11 @@ pub(crate) fn insert(
         let secret = util::prompt_for_secret(&secret_name, echo, false)?;
 
         if let Some(secret) = secret {
-            let mut secret = format!("otpauth://totp/{}?secret={}", secret_name, secret);
+            let mut secret = format!(
+                "otpauth://totp/{}?secret={}",
+                secret_name,
+                secret.trim_end_matches('=')
+            );
 
             if let Some(algo) = algo {
                 let algo = algo.to_ascii_lowercase();
@@ -72,7 +76,7 @@ pub(crate) fn insert(
         let secret = util::prompt_for_secret(&secret_name, echo, false)?;
 
         if let Some(secret) = secret {
-            validate::validate(&secret)?;
+            validate::validate(&secret.trim_end_matches('='))?;
 
             if generate {
                 code::display_code(&secret)?;
